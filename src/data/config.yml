@@ -1,0 +1,6 @@
+data_root: data
+subfolders:
+  - set1
+  - set2
+  - set3
+output_dir: processed
