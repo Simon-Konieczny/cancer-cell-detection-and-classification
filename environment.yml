@@ -126,7 +126,6 @@ dependencies:
   - networkx=3.5=pyhe01879c_0
   - nomkl=1.0=h5ca1d4c_0
   - notebook-shim=0.2.4=pyhd8ed1ab_1
-  - numpy=2.3.4=py311h8685306_0
   - openjpeg=2.5.4=hbfb3c88_0
   - openssl=3.5.4=h5503f6c_0
   - overrides=7.7.0=pyhd8ed1ab_1
@@ -215,4 +214,10 @@ dependencies:
   - zlib-ng=2.2.5=h3470cca_0
   - zstandard=0.25.0=py311h5bb9006_0
   - zstd=1.5.7=h6491c7d_2
+  - pip:
+      - imagehash==4.3.2
+      - lightgbm==4.6.0
+      - numpy==2.2.6
+      - opencv-python==4.12.0.88
+      - pywavelets==1.9.0
 prefix: /opt/homebrew/Caskroom/miniforge/base/envs/tumor-detect
