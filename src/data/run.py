@@ -4,10 +4,12 @@ from standardise import apply_standardisation
 from split import split_dataset
 
 def run_pipeline(raw="data/raw", out="data/processed"):
+    print(f"Running pipeline:\n Raw data: {raw}\n Processed data: {out}\n")
     extract_images(raw, out)
     remove_duplicates(out)
     apply_standardisation(out, resize=(224, 224), clahe=True, denoise=True)
     split_dataset(out)
+    print("Pipeline complete.")
 
 if __name__ == "__main__":
     localDataSet = [("./data/raw/LocalDataSet/DCL_Mammos", "./data/processed/LocalDataSet/DCL_Mammos"),

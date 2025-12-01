@@ -5,9 +5,16 @@ from PIL import Image
 
 def extract_images(raw_dir, out_dir):
     raw_dir = Path(raw_dir)
-    print("Raw directory:", raw_dir)
+
     out_images = Path(out_dir) / "images"
-    out_images.mkdir(parents=True, exist_ok=True)
+    try:
+        if out_images.exists():
+            for f in out_images.iterdir():
+                f.unlink()
+            out_images.rmdir()
+    except Exception as e:
+        print("Error cleaning output directory:", e)
+    out_images.mkdir(parents=True, exist_ok=False)
 
     records = []
 
@@ -43,7 +50,7 @@ def extract_images(raw_dir, out_dir):
                 records.append({
                     "img_id": new_id,
                     "label": label,
-                    "patient_id": patient_id,
+                    "patient_id": label + "_" + patient_id,
                     "raw_path": str(img_path)
                 })
 
