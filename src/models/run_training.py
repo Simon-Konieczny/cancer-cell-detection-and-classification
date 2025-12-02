@@ -13,7 +13,7 @@ if __name__ == "__main__":
         train_classification(
             # processed_dir="./data/processed/LocalDataSet/DCL_USG",
             processed_dir="./data/processed/LocalDataSet/Spectra_Mammos",
-            epochs=20,
-            batch_size=32,
-            lr=1e-3
+            epochs=50,
+            batch_size=16,
+            lr=1e-4
         )
