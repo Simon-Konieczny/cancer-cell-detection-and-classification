@@ -24,9 +24,6 @@ def split_dataset(processed_dir, val_ratio=0.10, test_ratio=0.10):
     df["split"] = df["patient_id"].apply(assign_split)
     df.to_csv(metadata_path, index=False)
 
-    print(df["split"].value_counts())
-    print("Splits generated.")
-
 if __name__ == "__main__":
     # processed_directory = "./data/processed/LocalDataSet/DCL_Mammos"
     processed_directory = "./data/processed/LocalDataSet/DCL_USG"

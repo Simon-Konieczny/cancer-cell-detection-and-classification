@@ -31,7 +31,6 @@ def apply_standardisation(processed_dir, resize=(224, 224), clahe=False, denoise
         df.loc[i, "width"] = img.shape[1]
 
     df.to_csv(metadata_path, index=False)
-    print("Standardisation complete.")
 
 if __name__ == "__main__":
     processed_directory = "./data/processed/LocalDataSet/DCL_Mammos"

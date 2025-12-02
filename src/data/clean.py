@@ -18,13 +18,11 @@ def remove_duplicates(processed_dir, hash_threshold=5):
             with Image.open(img_path) as img:
                 h = imagehash.phash(img)
         except:
-            print("Removing unreadable:", img_path)
             continue
 
         is_duplicate = False
         for prev_hash, prev_id in seen.items():
             if abs(h - prev_hash) <= hash_threshold:
-                print("Duplicate:", img_path, "->", prev_id)
                 is_duplicate = True
                 break
 
@@ -34,7 +32,6 @@ def remove_duplicates(processed_dir, hash_threshold=5):
 
     df_out = pd.DataFrame(keep)
     df_out.to_csv(metadata_path, index=False)
-    print(f"After duplicate removal: {len(df_out)} images")
 
 if __name__ == "__main__":
     # processed_directory = "./data/processed/LocalDataSet/DCL_Mammos"
