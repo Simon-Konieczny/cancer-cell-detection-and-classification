@@ -1,3 +1,4 @@
+import shutil
 import uuid
 from pathlib import Path
 import pandas as pd
@@ -7,13 +8,9 @@ def extract_images(raw_dir, out_dir):
     raw_dir = Path(raw_dir)
 
     out_images = Path(out_dir) / "images"
-    try:
-        if out_images.exists():
-            for f in out_images.iterdir():
-                f.unlink()
-            out_images.rmdir()
-    except Exception as e:
-        print("Error cleaning output directory:", e)
+    if out_images.exists():
+        shutil.rmtree(out_images)
+
     out_images.mkdir(parents=True, exist_ok=False)
 
     records = []

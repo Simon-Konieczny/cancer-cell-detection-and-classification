@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-def split_dataset(processed_dir, val_ratio=0.15, test_ratio=0.15):
+def split_dataset(processed_dir, val_ratio=0.10, test_ratio=0.10):
     metadata_path = Path(processed_dir) / "metadata.csv"
     df = pd.read_csv(metadata_path)
 

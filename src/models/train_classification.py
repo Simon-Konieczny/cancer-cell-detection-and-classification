@@ -2,11 +2,18 @@ import torch
 from torch.utils.data import DataLoader
 from torch import nn, optim
 from dataset import BreastDataset
-from models.baseline_cnn import BaselineCNN
+from baseline_cnn import BaselineCNN
 from pathlib import Path
 
-def train_model(processed_dir, epochs=20, batch_size=32, lr=1e-3):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+def train_classification(processed_dir, epochs=20, batch_size=16, lr=1e-3):
+    print("Starting training...")
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+    elif torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
     print("Using device:", device)
 
     train_ds = BreastDataset(processed_dir, split="train")
