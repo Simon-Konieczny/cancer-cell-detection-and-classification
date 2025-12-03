@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 from torch import nn, optim
-from dataset import BreastDataset
+from dataset import SegmentationDataset as Dataset
 from pathlib import Path
 from baseline_unet import UNet
 
@@ -18,8 +18,8 @@ def train_segmentation(processed_dir, epochs=20, batch_size=4, lr=1e-3, num_clas
 
     print("Using device:", device)
 
-    train_ds = BreastDataset(processed_dir, split="train")
-    val_ds   = BreastDataset(processed_dir, split="val")
+    train_ds = Dataset(processed_dir, split="train")
+    val_ds   = Dataset(processed_dir, split="val")
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size)
@@ -35,6 +35,7 @@ def train_segmentation(processed_dir, epochs=20, batch_size=4, lr=1e-3, num_clas
     for epoch in range(1, epochs + 1):
         model.train()
         running_loss = 0
+        total = 0
 
         for imgs, masks in train_loader:
             imgs = imgs.to(device)             # [N,1,H,W]
@@ -45,10 +46,11 @@ def train_segmentation(processed_dir, epochs=20, batch_size=4, lr=1e-3, num_clas
             loss = criterion(outputs, masks)
             loss.backward()
             optimizer.step()
+            total += masks.size(0)
 
             running_loss += loss.item() * imgs.size(0)
 
-        train_loss = running_loss / len(train_loader.dataset)
+        train_loss = running_loss / total
 
         val_loss, val_iou = evaluate_seg(model, val_loader, criterion, device)
         scheduler.step(val_loss)

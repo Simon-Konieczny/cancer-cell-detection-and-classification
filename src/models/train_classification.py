@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 from torch import nn, optim
-from dataset import BreastDataset
+from dataset import ClassificationDataset as Dataset
 from baseline_cnn import BaselineCNN
 from pathlib import Path
 
@@ -16,8 +16,8 @@ def train_classification(processed_dir, epochs=20, batch_size=16, lr=1e-3):
 
     print("Using device:", device)
 
-    train_ds = BreastDataset(processed_dir, split="train")
-    val_ds   = BreastDataset(processed_dir, split="val")
+    train_ds = Dataset(processed_dir, split="train")
+    val_ds   = Dataset(processed_dir, split="val")
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size)
