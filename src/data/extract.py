@@ -71,7 +71,7 @@ def extract_segmentation(raw_dir, out_dir, workers=8):
         shutil.copy2(img_path, out_img)
         shutil.copy2(mask_path, out_mask)
 
-        return {
+        result = {
             "img_id": f"{pair_id}.png",
             "base_name": base,
             "img_path": f"images/{pair_id}.png",
@@ -79,6 +79,13 @@ def extract_segmentation(raw_dir, out_dir, workers=8):
             "raw_img": str(img_path),
             "raw_mask": str(mask_path),
         }
+
+        # for segmentation and clssification combined datasets
+        label = img_path.parent.name if img_path else None
+        if label in {"benign", "malignant", "normal"}:
+            result["label"] = label
+    
+        return result
 
     raw_dir = Path(raw_dir)
     out_dir = Path(out_dir)
