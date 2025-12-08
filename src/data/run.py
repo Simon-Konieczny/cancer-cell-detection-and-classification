@@ -3,6 +3,8 @@ from clean import remove_duplicates
 from standardise import apply_standardisation
 from concurrent.futures import ProcessPoolExecutor
 from split import split_cla_dataset, split_seg_dataset
+import yaml
+from pathlib import Path
 
 COMMON_STEPS = [
     remove_duplicates,
@@ -50,7 +52,9 @@ def run_all(data: dict, workers: int = 5):
             
         for dataset_name, path_list in datasets.items():
             print(f"Preparing tasks for {pipe_type} - {dataset_name}...")
-            for raw_dir, out_dir in path_list:
+            for path_config in path_list:
+                raw_dir = path_config['raw']
+                out_dir = path_config['processed']
                 tasks.append((raw_dir, out_dir, pipeline_func))
 
     if not tasks:
@@ -66,22 +70,24 @@ def run_all(data: dict, workers: int = 5):
     print("\nAll tasks finished successfully.")
 
 if __name__ == "__main__":
-    data = {
-        'classification': {
-            'LocalDataSet': [
-                ("./data/raw/LocalDataSet/DCL_Mammos", "./data/processed/LocalDataSet/DCL_Mammos"),
-                ("./data/raw/LocalDataSet/DCL_USG", "./data/processed/LocalDataSet/DCL_USG"),
-                ("./data/raw/LocalDataSet/Spectra_Mammos", "./data/processed/LocalDataSet/Spectra_Mammos")
-            ],
-        },
-        'segmentation': {
-            'BrCaWisconsin': [
-                ("./data/raw/BrCaWisconsin", "./data/processed/BrCaWisconsin")
-            ],
-            'BrEaST-Lesions_USG-images_and_masks': [
-                ("./data/raw/BrEaST-Lesions_USG-images_and_masks", "./data/processed/BrEaST-Lesions_USG-images_and_masks")
-            ],
-        },
-    }
+    SCRIPT_DIR = Path(__file__).resolve().parent
+    CONFIG_PATH = SCRIPT_DIR / 'config.yaml'
+    print(f"Loading configuration from: {CONFIG_PATH}")
 
-    run_all(data)
+    try:
+        if not CONFIG_PATH.exists():
+             raise FileNotFoundError(f"Configuration file not found at: {CONFIG_PATH}")
+
+        with open(CONFIG_PATH, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        pipeline_data = config.get('pipeline_data', {})
+        
+        run_all(pipeline_data)
+
+    except FileNotFoundError:
+        print(f"Error: Configuration file '{CONFIG_PATH}' not found. Exiting.")
+    except ImportError:
+        print("Error: PyYAML library not installed. Please run 'pip install pyyaml'.")
+    except Exception as e:
+        print(f"An unexpected error occurred during configuration loading: {e}")
