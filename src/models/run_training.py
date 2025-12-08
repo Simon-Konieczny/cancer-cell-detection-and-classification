@@ -3,7 +3,7 @@ if __name__ == "__main__":
     if input == "s":
         from train_segmentation import train_segmentation
         train_segmentation(
-            processed_dir="./data/processed/LocalDataSet/DCL_USG",
+            processed_dir="./data/processed/BrCaWisconsin",
             epochs=20,
             batch_size=16,
             lr=1e-3

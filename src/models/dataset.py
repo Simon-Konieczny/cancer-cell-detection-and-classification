@@ -59,7 +59,7 @@ class SegmentationDataset(Dataset):
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         img_path = self.images_dir / row.img_id
-        mask_path = self.masks_dir / row.mask_id
+        mask_path = self.root / row.mask_path
 
         img = Image.open(img_path).convert("L")   # using grayscale for USG + MG
         img = self.img_transform(img)
