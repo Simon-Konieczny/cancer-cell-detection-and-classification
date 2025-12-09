@@ -81,6 +81,13 @@ def extract_segmentation(raw_dir, out_dir, workers=8):
             print(f"Error processing pair {base}: {e}")
             return None
 
+        # for segmentation and classification combined datasets
+        label = None
+        if img_path:
+            candidate = img_path.parent.name
+            if candidate in {"benign", "malignant", "normal"}:
+                label = candidate
+
         result = create_row(img_id=f"{pair_id}.png",
                             img_hash=img_hash,
                             base_name=base,
@@ -89,12 +96,8 @@ def extract_segmentation(raw_dir, out_dir, workers=8):
                             raw_img=str(img_path),
                             raw_mask=str(mask_path),
                             height=height,
-                            width=width)
-
-        # for segmentation and classification combined datasets
-        label = img_path.parent.name if img_path else None
-        if label in {"benign", "malignant", "normal"}:
-            result["label"] = label
+                            width=width,
+                            label=label)
     
         return result
 
