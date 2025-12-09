@@ -1,14 +1,12 @@
 from extract import extract_classification, extract_segmentation
-from clean import remove_duplicates
-from standardise import apply_standardisation
+from clean import dedupe
 from concurrent.futures import ProcessPoolExecutor
 from split import split_cla_dataset, split_seg_dataset
 import yaml
 from pathlib import Path
 
 COMMON_STEPS = [
-    remove_duplicates,
-    lambda out: apply_standardisation(out, resize=(224, 224), clahe=True, denoise=True),
+    dedupe,
 ]
 
 def _run_single_pipeline(raw: str, out: str, extract_func, split_func):
@@ -74,6 +72,7 @@ if __name__ == "__main__":
     CONFIG_PATH = SCRIPT_DIR / 'config.yaml'
     print(f"Loading configuration from: {CONFIG_PATH}")
 
+    pipeline_data = {}
     try:
         if not CONFIG_PATH.exists():
              raise FileNotFoundError(f"Configuration file not found at: {CONFIG_PATH}")
@@ -82,12 +81,15 @@ if __name__ == "__main__":
             config = yaml.safe_load(f)
         
         pipeline_data = config.get('pipeline_data', {})
-        
-        run_all(pipeline_data)
 
     except FileNotFoundError:
         print(f"Error: Configuration file '{CONFIG_PATH}' not found. Exiting.")
     except ImportError:
         print("Error: PyYAML library not installed. Please run 'pip install pyyaml'.")
     except Exception as e:
-        print(f"An unexpected error occurred during configuration loading: {e}")
+        print(f"An unexpected error occurred: {e}")
+
+    if not pipeline_data:
+        print("No pipeline data found in configuration. Exiting.")
+    else:
+        run_all(pipeline_data)

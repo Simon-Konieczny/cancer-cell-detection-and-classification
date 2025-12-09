@@ -1,9 +1,6 @@
 import cv2
-import pandas as pd
-from pathlib import Path
 
-def process_image(img_path, resize=(224, 224), clahe=False, denoise=False):
-    img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
+def standardise_image(img, resize=(224, 224), clahe=False, denoise=False):
     if img is None:
         return None
 
@@ -17,32 +14,27 @@ def process_image(img_path, resize=(224, 224), clahe=False, denoise=False):
     if resize:
         img = cv2.resize(img, resize, interpolation=cv2.INTER_AREA)
 
-    return img
+    h = dhash_cv(img)
 
-def apply_standardisation(processed_dir, resize=(224, 224), clahe=False, denoise=False):
-    images_dir = Path(processed_dir) / "images"
-    metadata_path = Path(processed_dir) / "metadata.csv"
-    df = pd.read_csv(metadata_path)
+    return (img, h)
 
-    if clahe:
-        clahe_fn = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+def apply_standardization(img_path, out_path, resize=(224, 224), clahe=False, denoise=False):
+    img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
+    result = standardise_image(img, resize=resize, clahe=clahe, denoise=denoise)
+    if result is None:
+        return None
+    img, h = result
+    cv2.imwrite(str(out_path), img)
+    return h
 
-    for i, row in df.iterrows():
-        img_path = images_dir / row["img_id"]
+def dhash_cv(img, hash_size=8):
+    # convert to grayscale if needed
+    if len(img.shape) == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        img = process_image(img_path, resize=resize, clahe=clahe, denoise=denoise)
-        
-        if img is None:
-            print(f"Warning: could not process image {img_path}, skipping.")
-            continue
+    # resize to (hash_size+1, hash_size)
+    resized = cv2.resize(img, (hash_size + 1, hash_size), interpolation=cv2.INTER_AREA)
 
-        cv2.imwrite(str(img_path), img)
-        df.loc[i, "height"] = img.shape[0]
-        df.loc[i, "width"] = img.shape[1]
+    diff = resized[:, 1:] > resized[:, :-1]
 
-    df.to_csv(metadata_path, index=False)
-
-if __name__ == "__main__":
-    processed_directory = "./data/processed/LocalDataSet/DCL_Mammos"
-    # processed_directory = "./data/processed/LocalDataSet/DCL_USG"
-    apply_standardisation(processed_directory, resize=(224, 224), clahe=True, denoise=True)
+    return int(''.join(diff.flatten().astype(int).astype(str)), 2)
