@@ -9,7 +9,7 @@ def create_row(**kwargs):
     return {k: v for k, v in kwargs.items() if v not in ("", None)}
 
 def extract_classification(raw_dir, out_dir,workers=8):
-    def process_image(img_path, out_path, label, patient_id, resize=(224, 224), clahe=False, denoise=False):
+    def process_image(img_path, out_path, label, patient_id, resize=(512, 512), clahe=False, denoise=False):
         try:
             img_id = f"{uuid.uuid4().hex}.png"
             img_hash = apply_standardization(img_path, out_path / img_id, resize=resize, clahe=clahe, denoise=denoise)
@@ -19,7 +19,7 @@ def extract_classification(raw_dir, out_dir,workers=8):
             
             return create_row(img_id=img_id,
                               img_hash=img_hash,
-                              label=label,
+                              label=label.lower(),
                               patient_id=f"{label}_{patient_id}",
                               raw_path=str(img_path),
                               height=resize[0],
@@ -124,7 +124,7 @@ def extract_segmentation(raw_dir, out_dir, workers=8):
             base = name
             pairs.setdefault(base, {})["img"] = p
 
-    tasks = [(base, paths, out_images, out_masks, 224, 224) for base, paths in pairs.items()]
+    tasks = [(base, paths, out_images, out_masks, 512, 512) for base, paths in pairs.items()]
 
     with ThreadPoolExecutor(max_workers=workers) as exe:
         results = list(exe.map(copy_pair, tasks))

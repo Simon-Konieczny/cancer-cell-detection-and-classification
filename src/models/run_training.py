@@ -9,10 +9,11 @@ if __name__ == "__main__":
             lr=1e-3
         )
     else:
-        from train_classification import train_classification
-        train_classification(
+        from train_classification import classification
+        classification(
             # processed_dir="./data/processed/LocalDataSet/DCL_USG",
-            processed_dir="./data/processed/LocalDataSet/Spectra_Mammos",
+            # processed_dir="./data/processed/LocalDataSet/Spectra_Mammos",
+            processed_dir= "./data/processed/BrCaWisconsin",
             epochs=50,
             batch_size=16,
             lr=1e-4

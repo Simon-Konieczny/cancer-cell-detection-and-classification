@@ -1,8 +1,40 @@
 import cv2
+import numpy as np
 
-def standardise_image(img, resize=(224, 224), clahe=False, denoise=False):
+def standardise_image(img, resize=(224, 224), clahe=False, denoise=False, remove_artifacts=True):
     if img is None:
         return None
+    
+    if remove_artifacts:
+        _, mask = cv2.threshold(img, 15, 255, cv2.THRESH_BINARY)
+        
+        # Clean mask of small noise/text
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        
+        # Keep only the largest object
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contours:
+            largest_contour = max(contours, key=cv2.contourArea)
+            
+            # Mask out background artifacts
+            clean_mask = np.zeros_like(mask)
+            cv2.drawContours(clean_mask, [largest_contour], -1, 255, thickness=cv2.FILLED)
+            img = cv2.bitwise_and(img, img, mask=clean_mask)
+            
+            # Crop to the breast area
+            x, y, w, h = cv2.boundingRect(largest_contour)
+            img = img[y:y+h, x:x+w]
+        
+        # INPAINTING TO REMOVE ANNOTATIONS
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (21, 21))
+        tophat = cv2.morphologyEx(img, cv2.MORPH_TOPHAT, kernel)
+        
+        _, annot_mask = cv2.threshold(tophat, 40, 255, cv2.THRESH_BINARY)
+        
+        annot_mask = cv2.medianBlur(annot_mask, 3)
+        
+        img = cv2.inpaint(img, annot_mask, 3, cv2.INPAINT_TELEA)
 
     if denoise:
         img = cv2.medianBlur(img, 3)

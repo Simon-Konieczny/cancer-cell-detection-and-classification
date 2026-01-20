@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 from PIL import Image
+import cv2
 import pandas as pd
 from pathlib import Path
 
@@ -10,19 +11,27 @@ class ClassificationDataset(Dataset):
         self.root = Path(processed_dir)
         df = pd.read_csv(self.root / "metadata.csv")
         self.df = df[df["split"] == split].reset_index(drop=True)
-
+        self.split = split
         self.images_dir = self.root / "images"
 
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),               # HWC -> CHW, scales to [0,1]
-            transforms.Normalize(mean=[0.5], std=[0.5])  # simple baseline
+        self.train_transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.RandomRotation(degrees=15),
+            # transforms.ElasticTransform(alpha=50.0, sigma=5.0),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
+            transforms.RandomErasing(p=0.2 , scale=(0.02, 0.05)),
         ])
 
-        self.label_map = {
-            "Benign": 0,
-            "Malignant": 1,
-            "Normal": 2
-        }
+        self.val_transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5])
+        ])
+
+        self.label_map = {"benign": 0, "malignant": 1, "normal": 2}
 
     def __len__(self):
         return len(self.df)
@@ -31,12 +40,18 @@ class ClassificationDataset(Dataset):
         row = self.df.iloc[idx]
         img_path = self.images_dir / row.img_id
 
-        img = Image.open(img_path).convert("L")   # using grayscale for USG + MG
-        img = self.transform(img)
+        img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
 
-        label = torch.tensor(self.label_map[row.label], dtype=torch.long)
+        if self.split == "train":
+            img = self.train_transform(img)
+        else:
+            img = self.val_transform(img)
+
+        label_str = str(row.label).lower().strip()
+        label = torch.tensor(self.label_map[label_str], dtype=torch.long)
+        
         return img, label
-    
+
 class SegmentationDataset(Dataset):
     def __init__(self, processed_dir, split="train"):
         self.root = Path(processed_dir)
@@ -47,11 +62,11 @@ class SegmentationDataset(Dataset):
         self.masks_dir = self.root / "masks"
 
         self.img_transform = transforms.Compose([
-            transforms.ToTensor(),               # HWC -> CHW, scales to [0,1]
-            transforms.Normalize(mean=[0.5], std=[0.5])  # simple baseline
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5])
         ])
 
-        self.mask_transform = transforms.ToTensor()  # masks will be converted to [0,1]
+        self.mask_transform = transforms.ToTensor()
 
     def __len__(self):
         return len(self.df)
@@ -61,10 +76,10 @@ class SegmentationDataset(Dataset):
         img_path = self.images_dir / row.img_id
         mask_path = self.root / row.mask_path
 
-        img = Image.open(img_path).convert("L")   # using grayscale for USG + MG
+        img = Image.open(img_path).convert("L")
         img = self.img_transform(img)
 
-        mask = Image.open(mask_path).convert("L")  # single channel mask
-        mask = self.mask_transform(mask)           # [1,H,W], values in [0,1]
+        mask = Image.open(mask_path).convert("L")
+        mask = self.mask_transform(mask)
         
         return img, mask
