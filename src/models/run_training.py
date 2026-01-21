@@ -13,8 +13,8 @@ if __name__ == "__main__":
         classification(
             # processed_dir="./data/processed/LocalDataSet/DCL_USG",
             # processed_dir="./data/processed/LocalDataSet/Spectra_Mammos",
-            processed_dir= "./data/processed/BrCaWisconsin",
-            epochs=50,
-            batch_size=16,
-            lr=1e-4
+            # processed_dir= "./data/processed/BrCaWisconsin",
+            processed_dir="./data/processed/pooled_Mammos",
+            epochs=100,
+            batch_size=12,
         )

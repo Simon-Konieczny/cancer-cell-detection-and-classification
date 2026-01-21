@@ -3,10 +3,14 @@ from torch.utils.data import DataLoader
 from torch import nn, optim
 from dataset import ClassificationDataset as Dataset
 from cnn import BaselineCNN, ImprovedCNN, MedicalResNet
+from vit import MedicalViT
 from pathlib import Path
+from losses import FocalLoss
+from torch.optim.swa_utils import AveragedModel, SWALR
+from train_vit import train_medical_vit
 import copy
 
-def classification(processed_dir, epochs=20, batch_size=16, lr=1e-3):
+def classification(processed_dir, epochs=20, batch_size=16):
     print("Starting training...")
     if torch.backends.mps.is_available():
         device = torch.device("mps")
@@ -19,24 +23,20 @@ def classification(processed_dir, epochs=20, batch_size=16, lr=1e-3):
 
     train_ds = Dataset(processed_dir, split="train")
     val_ds   = Dataset(processed_dir, split="val")
+    train_sampler = get_balanced_sampler(train_ds)
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, sampler=train_sampler)
     val_loader = DataLoader(val_ds, batch_size=batch_size)
 
+    # model = MedicalViT(num_classes=3, img_size=512).to(device)
+
+    # return train_medical_vit(model, train_loader, val_loader, device)
     model = MedicalResNet(num_classes=3).to(device)
-
-    weights = torch.tensor([0.60, 1.22, 1.98]).to(device)
-    criterion = nn.CrossEntropyLoss(weight=weights)
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, 'min', patience=3
-    )
-
     return _train_classification_with_stop(
-        model, train_loader, val_loader, criterion, processed_dir, device,
-        epochs=epochs, warm_up_epochs=10, patience=7)
+        model, train_loader, val_loader, processed_dir, device,
+        epochs=epochs)
 
-def _train_classification_with_stop(model, train_loader, val_loader, criterion, processed_dir, device, epochs=50, warm_up_epochs=5, patience=7):
+def _train_classification_with_stop(model, train_loader, val_loader, processed_dir, device, epochs=50, warm_up_epochs=5, patience=12):
     # Early Stopping and Model Saving
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
@@ -44,14 +44,22 @@ def _train_classification_with_stop(model, train_loader, val_loader, criterion, 
     early_stop_counter = 0
     
     # initially freeze all layers except final FC
-    print("\n--- STAGE 1: Warm-Up Training (Frozen Backbone) ---")
+    print("\n--- STAGE 1: Warm-Up Training (Frozen Backbone) ---\n")
     for param in model.resnet.parameters():
         param.requires_grad = False
     for param in model.resnet.fc.parameters():
         param.requires_grad = True
 
+    weights = torch.tensor([0.60, 1.22, 1.98]).to(device)
+    # criterion = nn.CrossEntropyLoss(weight=weights, label_smoothing=0.1)
+    criterion = FocalLoss(alpha=weights, gamma=3.0)
+
     optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=1e-3)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2)
+
+    swa_model = AveragedModel(model)
+    swa_start = int(epochs * 0.75) # Start averaging in the last 25% of training
+    swa_scheduler = SWALR(optimizer, swa_lr=1e-5)
 
     for epoch in range(1, epochs + 1):
         # Unfreeze after warm-up
@@ -60,8 +68,16 @@ def _train_classification_with_stop(model, train_loader, val_loader, criterion, 
             for param in model.parameters():
                 param.requires_grad = True
             
-            optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
+            optimizer = torch.optim.AdamW([
+                {'params': model.resnet.conv1.parameters(), 'lr': 1e-6},
+                {'params': model.resnet.layer1.parameters(), 'lr': 1e-6},
+                {'params': model.resnet.layer2.parameters(), 'lr': 5e-6},
+                {'params': model.resnet.layer3.parameters(), 'lr': 1e-5},
+                {'params': model.resnet.layer4.parameters(), 'lr': 1e-5},
+                {'params': model.resnet.fc.parameters(), 'lr': 1e-4}
+            ], weight_decay=0.05)
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=(epochs - warm_up_epochs))
+            swa_scheduler = SWALR(optimizer, swa_lr=1e-5)
             # Reset patience for the new stage
             early_stop_counter = 0
 
@@ -83,6 +99,10 @@ def _train_classification_with_stop(model, train_loader, val_loader, criterion, 
 
         train_loss, train_acc = running_loss / total, correct / total
         val_loss, val_acc = evaluate(model, val_loader, criterion, device)
+
+        if epoch > swa_start:
+                swa_model.update_parameters(model)
+                swa_scheduler.step()
 
         # Update Scheduler
         if epoch <= warm_up_epochs:
@@ -134,3 +154,18 @@ def evaluate(model, loader, criterion, device):
             total += labels.size(0)
 
     return running_loss / total, correct / total
+
+def get_balanced_sampler(dataset):
+    labels = []
+    for label in dataset.df['label']:
+        label_str = str(label).lower().strip()
+        labels.append(dataset.label_map[label_str])
+    
+    class_sample_count = torch.tensor([(torch.tensor(labels) == t).sum() for t in torch.unique(torch.tensor(labels), sorted=True)])
+    weight = 1. / class_sample_count.float()
+
+    samples_weight = torch.tensor([weight[t] for t in labels])
+    
+    sampler = torch.utils.data.WeightedRandomSampler(weights=samples_weight.tolist(), num_samples=len(samples_weight), replacement=True)
+    
+    return sampler

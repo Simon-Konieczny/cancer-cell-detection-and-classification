@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import torchvision
 from dataset import ClassificationDataset as ClassificationDataset
 from torch.utils.data import DataLoader
+from train_classification import get_balanced_sampler
 
 def visualize_batch(dataloader):
     batch_imgs, batch_labels = next(iter(dataloader))
@@ -16,5 +17,5 @@ def visualize_batch(dataloader):
     plt.show()
 
 # Usage:
-train_loader = DataLoader(ClassificationDataset("./data/processed/BrCaWisconsin", split="train"), batch_size=16, shuffle=True)
+train_loader = DataLoader(ClassificationDataset("./data/processed/pooled_USG", split="train"), batch_size=16, sampler=get_balanced_sampler(ClassificationDataset("./data/processed/BrCaWisconsin", split="train")))
 visualize_batch(train_loader)
