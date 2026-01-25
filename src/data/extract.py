@@ -75,8 +75,8 @@ def extract_segmentation(raw_dir, out_dir, workers=8):
         out_mask = out_masks / f"{pair_id}.png"
 
         try:
-            img_hash = apply_standardization(img_path, out_img, resize=(height, width), clahe=True, denoise=True)
-            apply_standardization(mask_path, out_mask, resize=(height, width), clahe=False, denoise=False)
+            img_hash = apply_standardization(img_path, out_img, resize=(height, width), clahe=True, denoise=True, remove_artifacts=False)
+            apply_standardization(mask_path, out_mask, resize=(height, width), clahe=False, denoise=False, remove_artifacts=False)
         except Exception as e:
             print(f"Error processing pair {base}: {e}")
             return None

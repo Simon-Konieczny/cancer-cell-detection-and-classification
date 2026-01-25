@@ -1,10 +1,14 @@
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
+from torchvision.transforms import v2
 from PIL import Image
 import cv2
 import pandas as pd
 from pathlib import Path
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+import numpy as np
 
 class ClassificationDataset(Dataset):
     def __init__(self, processed_dir, split="train"):
@@ -61,25 +65,52 @@ class SegmentationDataset(Dataset):
         self.images_dir = self.root / "images"
         self.masks_dir = self.root / "masks"
 
-        self.img_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5], std=[0.5])
-        ])
-
-        self.mask_transform = transforms.ToTensor()
+        if split == "train":
+            # consider adding more augmentations here like elastic transform
+            self.transform = A.Compose([
+                A.HorizontalFlip(p=0.5),
+                # A.VerticalFlip(p=0.2),
+                A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=15, p=0.5),
+                # Mimics USG probe pressure
+                A.ElasticTransform(alpha=0.5, sigma=25, p=0.2),
+                # Mimics USG speckle noise
+                A.GaussNoise(var_limit=(10, 50), p=0.3), 
+                A.RandomBrightnessContrast(p=0.3),
+                # A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                ToTensorV2(),
+            ])
+        else:
+            # self.transform = A.Compose([
+            #     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            #     ToTensorV2(),
+            # ])
+            self.transform = A.Compose([
+                # A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                ToTensorV2(),
+            ])
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        img_path = self.images_dir / row.img_id
-        mask_path = self.root / row.mask_path
+        img = cv2.imread(str(self.root / "images" / row.img_id))
+        if img is not None:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        mask = cv2.imread(str(self.root / row.mask_path), cv2.IMREAD_GRAYSCALE)
+        if mask is not None:
+                mask = (mask > 127).astype(np.float32)
 
-        img = Image.open(img_path).convert("L")
-        img = self.img_transform(img)
+        augmented = self.transform(image=img, mask=mask)
+        img = augmented['image']
+        mask = augmented['mask']
 
-        mask = Image.open(mask_path).convert("L")
-        mask = self.mask_transform(mask)
+        if not isinstance(mask, torch.Tensor):
+            mask = torch.from_numpy(mask)
+            
+        if mask.ndimension() == 2:
+            mask = mask.unsqueeze(0)
         
         return img, mask

@@ -5,7 +5,7 @@ from dataset import ClassificationDataset as Dataset
 from cnn import BaselineCNN, ImprovedCNN, MedicalResNet
 from vit import MedicalViT
 from pathlib import Path
-from losses import FocalLoss
+from losses import FocalLossClassification
 from torch.optim.swa_utils import AveragedModel, SWALR
 from train_vit import train_medical_vit
 import copy
@@ -52,7 +52,7 @@ def _train_classification_with_stop(model, train_loader, val_loader, processed_d
 
     weights = torch.tensor([0.60, 1.22, 1.98]).to(device)
     # criterion = nn.CrossEntropyLoss(weight=weights, label_smoothing=0.1)
-    criterion = FocalLoss(alpha=weights, gamma=3.0)
+    criterion = FocalLossClassification(alpha=weights, gamma=3.0)
 
     optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=1e-3)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2)

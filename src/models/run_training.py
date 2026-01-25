@@ -1,19 +1,16 @@
 if __name__ == "__main__":
     input = input("classification or segmentation? (c/s): ").strip().lower()
     if input == "s":
-        from train_segmentation import train_segmentation
-        train_segmentation(
-            processed_dir="./data/processed/BrCaWisconsin",
-            epochs=20,
-            batch_size=16,
-            lr=1e-3
+        from train_segmentation import segmentation
+        segmentation(
+            processed_dir="./data/processed/pooled_seg_USG",
+            epochs=100,
+            batch_size=8
         )
     else:
         from train_classification import classification
         classification(
-            # processed_dir="./data/processed/LocalDataSet/DCL_USG",
-            # processed_dir="./data/processed/LocalDataSet/Spectra_Mammos",
-            # processed_dir= "./data/processed/BrCaWisconsin",
+            # processed_dir="./data/processed/pooled_USG",
             processed_dir="./data/processed/pooled_Mammos",
             epochs=100,
             batch_size=12,

@@ -40,7 +40,7 @@ def standardise_image(img, resize=(224, 224), clahe=False, denoise=False, remove
         img = cv2.medianBlur(img, 3)
 
     if clahe:
-        clahe_fn = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        clahe_fn = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
         img = clahe_fn.apply(img)
 
     if resize:
@@ -50,9 +50,9 @@ def standardise_image(img, resize=(224, 224), clahe=False, denoise=False, remove
 
     return (img, h)
 
-def apply_standardization(img_path, out_path, resize=(224, 224), clahe=False, denoise=False):
+def apply_standardization(img_path, out_path, resize=(224, 224), clahe=False, denoise=False, remove_artifacts=True):
     img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
-    result = standardise_image(img, resize=resize, clahe=clahe, denoise=denoise)
+    result = standardise_image(img, resize=resize, clahe=clahe, denoise=denoise, remove_artifacts=remove_artifacts)
     if result is None:
         return None
     img, h = result
