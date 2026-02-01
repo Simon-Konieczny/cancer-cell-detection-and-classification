@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from cnn import MedicalResNet
+from class_models import get_model
 
 class GradCAM:
     def __init__(self, model, target_layer):
@@ -101,11 +102,11 @@ def plot_comparison(original_img, heatmap, output_path="result.png"):
 
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-model = MedicalResNet()
-model.load_state_dict(torch.load('./data/processed/BrCaWisconsin/checkpoints/medical_resnet_best_acc_0.84.pth'))
+model = get_model(model_name="convnext_small.fb_in22k_ft_in1k")
+model.load_state_dict(torch.load('./data/processed/pooled_Mammos/best_classification_model.pth'))
 model.to(device)
 model.eval()
-cam = GradCAM(model, model.resnet.layer4)
+cam = GradCAM(model,)
 batch = prepare_input(device, './data/processed/BrCaWisconsin/images/0af7cc840a48436da112978750a5c151.png')
 heatmap = cam.generate_heatmap(batch)
 # save_gradcam_result('./data/processed/BrCaWisconsin/images/0af7cc840a48436da112978750a5c151.png', heatmap, 'example.png')

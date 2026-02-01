@@ -1,146 +1,111 @@
 import torch
-from torch.utils.data import DataLoader
-from torch import nn, optim
-from dataset import ClassificationDataset as Dataset
-from cnn import BaselineCNN, ImprovedCNN, MedicalResNet
-from vit import MedicalViT
-from pathlib import Path
-from losses import FocalLossClassification
-from torch.optim.swa_utils import AveragedModel, SWALR
-from train_vit import train_medical_vit
-import copy
+from class_models import get_model
+from sklearn.metrics import f1_score, classification_report, roc_auc_score
+from sklearn.preprocessing import LabelBinarizer
+from tqdm import tqdm
+from timm.data.mixup import Mixup
+import matplotlib.pyplot as plt
+import numpy as np
+import torch.nn.functional as F
+from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
 
-def classification(processed_dir, epochs=20, batch_size=16):
-    print("Starting training...")
-    if torch.backends.mps.is_available():
-        device = torch.device("mps")
-    elif torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
-
-    print("Using device:", device)
-
-    train_ds = Dataset(processed_dir, split="train")
-    val_ds   = Dataset(processed_dir, split="val")
-    train_sampler = get_balanced_sampler(train_ds)
-
-    train_loader = DataLoader(train_ds, batch_size=batch_size, sampler=train_sampler)
-    val_loader = DataLoader(val_ds, batch_size=batch_size)
-
-    # model = MedicalViT(num_classes=3, img_size=512).to(device)
-
-    # return train_medical_vit(model, train_loader, val_loader, device)
-    model = MedicalResNet(num_classes=3).to(device)
-    return _train_classification_with_stop(
-        model, train_loader, val_loader, processed_dir, device,
-        epochs=epochs)
-
-def _train_classification_with_stop(model, train_loader, val_loader, processed_dir, device, epochs=50, warm_up_epochs=5, patience=12):
-    # Early Stopping and Model Saving
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_acc = 0.0
-    best_loss = float('inf')
+def _train_with_stop(model, optimizer, criterion, scheduler, train_loader, val_loader, device, epochs, warm_up_epochs, patience):
+    best_f1, val_f1 = 0.0, 0.0
     early_stop_counter = 0
-    
-    # initially freeze all layers except final FC
-    print("\n--- STAGE 1: Warm-Up Training (Frozen Backbone) ---\n")
-    for param in model.resnet.parameters():
-        param.requires_grad = False
-    for param in model.resnet.fc.parameters():
-        param.requires_grad = True
-
-    weights = torch.tensor([0.60, 1.22, 1.98]).to(device)
-    # criterion = nn.CrossEntropyLoss(weight=weights, label_smoothing=0.1)
-    criterion = FocalLossClassification(alpha=weights, gamma=3.0)
-
-    optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=1e-3)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2)
-
-    swa_model = AveragedModel(model)
-    swa_start = int(epochs * 0.75) # Start averaging in the last 25% of training
-    swa_scheduler = SWALR(optimizer, swa_lr=1e-5)
+    best_model_wts = None
 
     for epoch in range(1, epochs + 1):
-        # Unfreeze after warm-up
-        if epoch == warm_up_epochs + 1:
-            print("\n--- STAGE 2: Unfreezing Backbone & Fine-Tuning ---")
+        if epoch <= warm_up_epochs:
+            for name, param in model.named_parameters():
+                param.requires_grad = ("classifier" in name or "head" in name)
+        else:
             for param in model.parameters():
                 param.requires_grad = True
-            
-            optimizer = torch.optim.AdamW([
-                {'params': model.resnet.conv1.parameters(), 'lr': 1e-6},
-                {'params': model.resnet.layer1.parameters(), 'lr': 1e-6},
-                {'params': model.resnet.layer2.parameters(), 'lr': 5e-6},
-                {'params': model.resnet.layer3.parameters(), 'lr': 1e-5},
-                {'params': model.resnet.layer4.parameters(), 'lr': 1e-5},
-                {'params': model.resnet.fc.parameters(), 'lr': 1e-4}
-            ], weight_decay=0.05)
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=(epochs - warm_up_epochs))
-            swa_scheduler = SWALR(optimizer, swa_lr=1e-5)
-            # Reset patience for the new stage
-            early_stop_counter = 0
+        correct, total = 0, 0
 
-        model.train()
-        running_loss, correct, total = 0.0, 0, 0
+        train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, criterion, device, correct, total)
+        val_loss, val_f1, avg_auc, all_probs, all_labels = _validate(model, criterion, val_loader, device, best_f1)
 
-        for imgs, labels in train_loader:
-            imgs, labels = imgs.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(imgs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+        scheduler.step(val_f1)
 
-            running_loss += loss.item() * imgs.size(0)
-            _, preds = outputs.max(1)
-            correct += (preds == labels).sum().item()
-            total += labels.size(0)
+        print(f"Epoch {epoch} | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f}")
+        print(f"Val Loss: {val_loss:.4f} | Val F1: {val_f1:.4f}")
 
-        train_loss, train_acc = running_loss / total, correct / total
-        val_loss, val_acc = evaluate(model, val_loader, criterion, device)
-
-        if epoch > swa_start:
-                swa_model.update_parameters(model)
-                swa_scheduler.step()
-
-        # Update Scheduler
-        if epoch <= warm_up_epochs:
-            scheduler.step(val_loss) #type: ignore
-        else:
-            scheduler.step() #type: ignore
-
-        print(f"Epoch {epoch}/{epochs} | Train Acc: {train_acc:.4f} | Val Acc: {val_acc:.4f} | Val Loss: {val_loss:.4f}")
-
-        # track Val Loss because it is the best indicator of generalization
-        if val_loss < best_loss:
-            print(f"--> Validation Loss decreased ({best_loss:.4f} to {val_loss:.4f}). Saving best model weights.")
-            best_loss = val_loss
-            best_acc = val_acc
-            best_model_wts = copy.deepcopy(model.state_dict())
+        # track Val F1 because it is the best indicator of generalization
+        if val_f1 > best_f1:
+            best_model_wts = model.state_dict()
+            print(f"--> Val F1 increased ({best_f1:.4f} to {val_f1:.4f}). Saving model.")
+            best_f1 = val_f1
             early_stop_counter = 0
         else:
             early_stop_counter += 1
-            print(f"--> No improvement in Val Loss. EarlyStop Counter: {early_stop_counter}/{patience}")
+            print(f"--> No improvement in Val F1. EarlyStop Counter: {early_stop_counter}/{patience}")
 
         if early_stop_counter >= patience:
             print(f"\n[!] Early stopping triggered at epoch {epoch}. Reverting to best weights.")
             break
 
-    # Load best model weights before returning
-    model.load_state_dict(best_model_wts)
-    
-    out_dir = Path(processed_dir) / "checkpoints"
-    out_dir.mkdir(exist_ok=True, parents=True)
-    torch.save(model.state_dict(), out_dir / f"medical_resnet_best_acc_{best_acc:.2f}.pth")
-
+    if best_model_wts is not None:
+        model.load_state_dict(best_model_wts)
     return model
 
-def evaluate(model, loader, criterion, device):
+def train_one_epoch(model, loader, optimizer, criterion, device, correct, total):
+    model.train()
+    running_loss = 0.0
+    # mixup_fn = Mixup(
+    #     mixup_alpha=0.2, 
+    #     cutmix_alpha=1.0, 
+    #     prob=0.5, 
+    #     switch_prob=0.5, 
+    #     mode='batch',
+    #     label_smoothing=0.1, 
+    #     num_classes=3
+    # )
+
+    pbar = tqdm(loader, desc="Training")
+    for imgs, labels in pbar:
+        # imgs, labels = mixup_fn(imgs, labels)
+        imgs, labels = imgs.to(device), labels.to(device)
+        
+        optimizer.zero_grad()
+        outputs = model(imgs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item() * imgs.size(0)
+        correct += (outputs.argmax(1) == labels).sum().item()
+        total += labels.size(0)
+
+    return running_loss / total, correct / total
+
+def _train_with_swa(model, optimizer, criterion, standard_scheduler, train_loader, val_loader, device, epochs):
+    # 1. Initialize SWA components
+    swa_model = AveragedModel(model)
+    swa_scheduler = SWALR(optimizer, swa_lr=5e-5)
+    swa_start = int(epochs * 0.75) # Start SWA at 75% of training
+
+    best_f1, val_f1 = 0.0, 0.0
+
+    for epoch in range(1, epochs + 1):
+        correct, total = 0, 0
+        train_one_epoch(model, train_loader, optimizer, criterion, device, correct, total)
+        _, val_f1, _, _, _ = _validate(model, criterion, val_loader, device, best_f1)
+        
+        # 2. Decide between standard and SWA scheduling
+        if epoch > swa_start:
+            swa_model.update_parameters(model)
+            swa_scheduler.step()
+        else:
+            standard_scheduler.step(val_f1)
+
+    # 3. Final Step: Update Batch Normalization for the averaged model
+    update_bn(train_loader, swa_model, device=device)
+    return swa_model
+
+def _validate(model, criterion, loader, device, best_f1=None):
     model.eval()
-    running_loss = 0
-    correct = 0
-    total = 0
+    running_loss, all_preds, all_labels, all_probs = 0.0, [], [], []
 
     with torch.no_grad():
         for imgs, labels in loader:
@@ -149,23 +114,132 @@ def evaluate(model, loader, criterion, device):
             loss = criterion(outputs, labels)
 
             running_loss += loss.item() * imgs.size(0)
-            _, preds = outputs.max(1)
-            correct += (preds == labels).sum().item()
-            total += labels.size(0)
+            probs = torch.softmax(outputs, dim=1)
+            preds = torch.argmax(outputs, dim=1)
+            
+            all_probs.extend(probs.cpu().numpy())
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
-    return running_loss / total, correct / total
+    avg_loss = running_loss / len(loader.dataset)
+    avg_f1 = f1_score(all_labels, all_preds, average='macro')
+    # plot_confusion_matrix(all_labels, all_preds)
 
-def get_balanced_sampler(dataset):
-    labels = []
-    for label in dataset.df['label']:
-        label_str = str(label).lower().strip()
-        labels.append(dataset.label_map[label_str])
-    
-    class_sample_count = torch.tensor([(torch.tensor(labels) == t).sum() for t in torch.unique(torch.tensor(labels), sorted=True)])
-    weight = 1. / class_sample_count.float()
+    # Calculate Macro ROC-AUC
+    lb = LabelBinarizer()
+    lb.fit(all_labels)
+    all_labels_bin = lb.transform(all_labels)
+    # multi_class='ovr' handles the 3 classes correctly
+    avg_auc = roc_auc_score(all_labels_bin, all_probs, multi_class='ovr', average='macro')
 
-    samples_weight = torch.tensor([weight[t] for t in labels])
+    if best_f1 and avg_f1 > best_f1:
+        print("\n[Detailed Report]")
+        print(classification_report(all_labels, all_preds, target_names=["Benign", "Malignant", "Normal"]))
+    return avg_loss, avg_f1, avg_auc, np.array(all_probs), np.array(all_labels)
+
+def _find_best_thresholds(all_probs, all_labels):
+    """
+    all_probs: [N, 3] array of softmax probabilities
+    all_labels: [N] array of true indices
+    """
+    best_f1 = 0
+    best_weights = [1.0, 1.0, 1.0]
     
-    sampler = torch.utils.data.WeightedRandomSampler(weights=samples_weight.tolist(), num_samples=len(samples_weight), replacement=True)
+    # Search range for multipliers
+    search_space = np.linspace(0.8, 1.5, 8) 
+
+    for w_benign in search_space:
+        for w_malignant in search_space:
+            # We keep Normal at 1.0 and adjust others relative to it
+            current_weights = np.array([w_benign, w_malignant, 1.0])
+            weighted_probs = all_probs * current_weights
+            preds = np.argmax(weighted_probs, axis=1)
+            
+            f1 = f1_score(all_labels, preds, average='macro')
+            
+            if f1 > best_f1:
+                best_f1 = f1
+                best_weights = current_weights
+                
+    print(f"--- Optimization Complete ---")
+    print(f"Best Macro F1: {best_f1:.4f}")
+    print(f"Best Bias Weights (B, M, N): {best_weights}")
+    return best_weights
+
+def _tta_validate(model, loader, device, best_biases=None):
+    model.eval()
+    all_probs, all_labels = [], []
+
+    print("Running Inference with TTA...")
+    with torch.no_grad():
+        for imgs, labels in tqdm(loader):
+            imgs = imgs.to(device)
+            
+            # 1. Original Image
+            logits1 = model(imgs)
+            
+            # 2. Horizontal Flip
+            logits2 = model(torch.flip(imgs, dims=[3]))
+            
+            # 3. Vertical Flip (Optional, but good for Mammos)
+            logits3 = model(torch.flip(imgs, dims=[2]))
+
+            # Average the Softmax probabilities
+            probs1 = F.softmax(logits1, dim=1)
+            probs2 = F.softmax(logits2, dim=1)
+            probs3 = F.softmax(logits3, dim=1)
+            
+            avg_probs = (probs1 + probs2 + probs3) / 3.0
+            
+            all_probs.append(avg_probs.cpu().numpy())
+            all_labels.extend(labels.numpy())
+
+    all_probs = np.concatenate(all_probs, axis=0)
+    all_labels = np.array(all_labels)
+
+    # Apply Calibration Biases if provided
+    if best_biases is not None:
+        all_probs = all_probs * best_biases
+        
+    preds = np.argmax(all_probs, axis=1)
+    return all_probs, all_labels, preds
+
+
+# def get_balanced_sampler(dataset):
+#     labels = [dataset.label_map[str(l).lower().strip()] for l in dataset.df['label']]
+#     labels_tensor = torch.tensor(labels)
     
-    return sampler
+#     class_sample_count = torch.bincount(labels_tensor)
+#     weight = 1. / class_sample_count.float()
+
+#     samples_weight = weight[labels_tensor]
+    
+#     sampler = torch.utils.data.WeightedRandomSampler(
+#         weights=samples_weight.tolist(), 
+#         num_samples=len(samples_weight), 
+#         replacement=True
+#     )
+    
+#     return sampler
+
+# def get_scheduler(optimizer, epochs, warmup_epochs=5):
+#     # 1. Linear Warmup: starts at 10% of LR and reaches 100% at warmup_epochs
+#     warmup_lr_lambda = lambda epoch: min(1.0, (epoch + 1) / warmup_epochs)
+#     warmup_scheduler = LambdaLR(optimizer, lr_lambda=warmup_lr_lambda)
+    
+#     main_scheduler = CosineAnnealingLR(optimizer, T_max=(epochs - warmup_epochs) / 2, eta_min=1e-6)
+    
+#     scheduler = SequentialLR(optimizer, 
+#                              schedulers=[warmup_scheduler, main_scheduler], 
+#                              milestones=[warmup_epochs])
+#     return scheduler
+
+# def plot_confusion_matrix(all_labels, all_preds):
+#     cm = confusion_matrix(all_labels, all_preds)
+#     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Benign", "Malignant", "Normal"])
+    
+#     fig, ax = plt.subplots(figsize=(8, 6))
+#     disp.plot(cmap='Blues', ax=ax)
+#     plt.title(f"Confusion Matrix")
+#     plt.savefig('./data/processed/pooled_Mammos.png')
+#     plt.close()

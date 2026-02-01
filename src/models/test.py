@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
 import torchvision
 from dataset import SegmentationDataset as Dataset
+from dataset import ClassificationDataset as ClsDataset
 from torch.utils.data import DataLoader
-from train_classification import get_balanced_sampler
 import numpy as np
 
-def visualize_batch(dataloader, masks=False):
+def visualize_batch(dataloader):
     batch_imgs, batch_labels = next(iter(dataloader))
     
     grid = torchvision.utils.make_grid(batch_imgs, nrow=4)
@@ -17,19 +17,10 @@ def visualize_batch(dataloader, masks=False):
     plt.axis('off')
     plt.show()
 
-    if masks:
-        grid = torchvision.utils.make_grid(batch_labels, nrow=4)
-        grid = grid * 0.5 + 0.5  # Unnormalize
-
-        plt.figure(figsize=(12, 12))
-        plt.imshow(grid.permute(1, 2, 0).numpy(), cmap='gray')
-        plt.title("Visualizing Augmented Training Masks")
-        plt.axis('off')
-        plt.show()
-
 # Classification
-# train_loader = DataLoader(Dataset("./data/processed/pooled_USG", split="train"), 
-#                           batch_size=16, sampler=get_balanced_sampler(Dataset("./data/processed/pooled_USG", split="train")))
+train_loader = DataLoader(ClsDataset("./data/processed/pooled_Mammos", split="test"), 
+                          batch_size=16,)
+visualize_batch(train_loader)
 
 def visualize_sample(dataset, idx=0):
     img, mask = dataset[idx]
@@ -60,4 +51,4 @@ def visualize_sample(dataset, idx=0):
     plt.show()
 
 #Segmentation
-visualize_sample(Dataset("./data/processed/pooled_seg_USG", split="train"), idx=17)
+# visualize_sample(Dataset("./data/processed/pooled_seg_USG", split="train"), idx=17)

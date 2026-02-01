@@ -32,6 +32,7 @@ class FocalLossClassification(nn.Module):
             return focal_loss.sum()
         else:
             return focal_loss
+
 class HybridLoss(nn.Module):
     def __init__(self):
         super().__init__()

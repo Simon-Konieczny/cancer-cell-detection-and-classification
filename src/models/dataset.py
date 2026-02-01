@@ -10,30 +10,84 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import numpy as np
 
+def get_bbox(img):
+    """
+    Finds the bounding box of the breast tissue to remove empty black background.
+    """
+    # 1. Threshold to create a mask of the tissue
+    # Mammograms have very dark backgrounds, so a low threshold works
+    _, mask = cv2.threshold(img, 10, 255, cv2.THRESH_BINARY)
+    
+    # 2. Find contours
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return 0, 0, img.shape[1], img.shape[0]
+        
+    # 3. Get the largest contour (the breast)
+    cnt = max(contours, key=cv2.contourArea)
+    x, y, w, h = cv2.boundingRect(cnt)
+    return x, y, w, h
+
 class ClassificationDataset(Dataset):
-    def __init__(self, processed_dir, split="train"):
+    def __init__(self, processed_dir, split="train", indices=None, use_roi=True):
         self.root = Path(processed_dir)
+        self.use_roi = use_roi
         df = pd.read_csv(self.root / "metadata.csv")
-        self.df = df[df["split"] == split].reset_index(drop=True)
-        self.split = split
+        if indices is not None:
+            self.df = df.iloc[indices].reset_index(drop=True)
+        else:
+            self.df = df[df["split"] == split].reset_index(drop=True)
         self.images_dir = self.root / "images"
 
-        self.train_transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomRotation(degrees=15),
-            # transforms.ElasticTransform(alpha=50.0, sigma=5.0),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5], std=[0.5]),
-            transforms.RandomErasing(p=0.2 , scale=(0.02, 0.05)),
-        ])
+        # ImageNet constants
+        mean = (0.485, 0.456, 0.406)
+        std = (0.229, 0.224, 0.225)
 
-        self.val_transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5], std=[0.5])
-        ])
+        if split == "train":
+            self.transform = A.Compose([
+                    A.LongestMaxSize(max_size=640),
+                    A.PadIfNeeded(
+                        min_height=640, 
+                        min_width=640, 
+                        border_mode=cv2.BORDER_CONSTANT, 
+                        value=0
+                    ),
+                    A.Resize(height=640, width=640),
+                    A.OneOf([
+                        A.Sharpen(alpha=(0.2, 0.5), p=1.0),
+                        A.CLAHE(clip_limit=4.0, p=1.0), 
+                    ], p=0.5),
+                    A.RandomResizedCrop(height=640, width=640, scale=(0.8, 1.0), p=0.5),
+                    A.HorizontalFlip(p=0.5),
+                    A.VerticalFlip(p=0.2),
+                    A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=20, p=0.5),
+                    # Mimics USG probe pressure
+                    # A.ElasticTransform(alpha=0.5, sigma=25, p=0.2),
+                    A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.3),
+                    A.OneOf([
+                        A.CoarseDropout(max_holes=8, max_height=32, max_width=32, min_holes=4, p=0.5),
+                        A.GridDropout(ratio=0.2, p=1.0),
+                    ], p=0.5),
+                    A.OneOf([
+                        A.GaussianBlur(blur_limit=(3, 7), p=1.0),
+                        A.ImageCompression(quality_lower=60, quality_upper=100, p=1.0),
+                    ], p=0.3),
+                    A.Normalize(mean=mean, std=std),
+                    ToTensorV2(),
+                ])
+        else:
+            self.transform = A.Compose([
+                    A.LongestMaxSize(max_size=640),
+                    A.PadIfNeeded(
+                        min_height=640, 
+                        min_width=640, 
+                        border_mode=cv2.BORDER_CONSTANT, 
+                        value=0
+                    ),
+                    A.Resize(height=640, width=640),
+                    A.Normalize(mean=mean, std=std),
+                    ToTensorV2(),
+                ])
 
         self.label_map = {"benign": 0, "malignant": 1, "normal": 2}
 
@@ -44,15 +98,22 @@ class ClassificationDataset(Dataset):
         row = self.df.iloc[idx]
         img_path = self.images_dir / row.img_id
 
-        img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
+        img = cv2.imread(str(img_path))
+        if img is None:
+            raise FileNotFoundError(f"Image not found: {img_path}")
+        if self.use_roi:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            x, y, w, h = get_bbox(gray)
 
-        if self.split == "train":
-            img = self.train_transform(img)
-        else:
-            img = self.val_transform(img)
+            if w > 10 and h > 10:
+                img = img[y:y+h, x:x+w]
+
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        augmented = self.transform(image = img)
+        img = augmented['image']
 
         label_str = str(row.label).lower().strip()
-        label = torch.tensor(self.label_map[label_str], dtype=torch.long)
+        label = self.label_map[label_str]
         
         return img, label
 
