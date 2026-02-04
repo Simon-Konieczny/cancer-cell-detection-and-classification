@@ -14,22 +14,18 @@ def get_bbox(img):
     """
     Finds the bounding box of the breast tissue to remove empty black background.
     """
-    # 1. Threshold to create a mask of the tissue
-    # Mammograms have very dark backgrounds, so a low threshold works
     _, mask = cv2.threshold(img, 10, 255, cv2.THRESH_BINARY)
     
-    # 2. Find contours
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return 0, 0, img.shape[1], img.shape[0]
         
-    # 3. Get the largest contour (the breast)
     cnt = max(contours, key=cv2.contourArea)
     x, y, w, h = cv2.boundingRect(cnt)
     return x, y, w, h
 
 class ClassificationDataset(Dataset):
-    def __init__(self, processed_dir, split="train", indices=None, use_roi=True):
+    def __init__(self, processed_dir, split="train", indices=None, use_roi=True, img_size=640):
         self.root = Path(processed_dir)
         self.use_roi = use_roi
         df = pd.read_csv(self.root / "metadata.csv")
@@ -45,24 +41,21 @@ class ClassificationDataset(Dataset):
 
         if split == "train":
             self.transform = A.Compose([
-                    A.LongestMaxSize(max_size=640),
+                    A.LongestMaxSize(max_size=img_size),
                     A.PadIfNeeded(
-                        min_height=640, 
-                        min_width=640, 
+                        min_height=img_size, 
+                        min_width=img_size, 
                         border_mode=cv2.BORDER_CONSTANT, 
                         value=0
                     ),
-                    A.Resize(height=640, width=640),
                     A.OneOf([
                         A.Sharpen(alpha=(0.2, 0.5), p=1.0),
                         A.CLAHE(clip_limit=4.0, p=1.0), 
                     ], p=0.5),
-                    A.RandomResizedCrop(height=640, width=640, scale=(0.8, 1.0), p=0.5),
+                    A.RandomResizedCrop(height=img_size, width=img_size, scale=(0.8, 1.0), p=0.5),
                     A.HorizontalFlip(p=0.5),
                     A.VerticalFlip(p=0.2),
                     A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=20, p=0.5),
-                    # Mimics USG probe pressure
-                    # A.ElasticTransform(alpha=0.5, sigma=25, p=0.2),
                     A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.3),
                     A.OneOf([
                         A.CoarseDropout(max_holes=8, max_height=32, max_width=32, min_holes=4, p=0.5),
@@ -77,14 +70,13 @@ class ClassificationDataset(Dataset):
                 ])
         else:
             self.transform = A.Compose([
-                    A.LongestMaxSize(max_size=640),
+                    A.LongestMaxSize(max_size=img_size),
                     A.PadIfNeeded(
-                        min_height=640, 
-                        min_width=640, 
+                        min_height=img_size, 
+                        min_width=img_size, 
                         border_mode=cv2.BORDER_CONSTANT, 
                         value=0
                     ),
-                    A.Resize(height=640, width=640),
                     A.Normalize(mean=mean, std=std),
                     ToTensorV2(),
                 ])
@@ -127,27 +119,17 @@ class SegmentationDataset(Dataset):
         self.masks_dir = self.root / "masks"
 
         if split == "train":
-            # consider adding more augmentations here like elastic transform
             self.transform = A.Compose([
                 A.HorizontalFlip(p=0.5),
-                # A.VerticalFlip(p=0.2),
                 A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=15, p=0.5),
-                # Mimics USG probe pressure
                 A.ElasticTransform(alpha=0.5, sigma=25, p=0.2),
-                # Mimics USG speckle noise
                 A.GaussNoise(var_limit=(10, 50), p=0.3), 
                 A.RandomBrightnessContrast(p=0.3),
-                # A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
                 A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
                 ToTensorV2(),
             ])
         else:
-            # self.transform = A.Compose([
-            #     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-            #     ToTensorV2(),
-            # ])
             self.transform = A.Compose([
-                # A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
                 A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
                 ToTensorV2(),
             ])

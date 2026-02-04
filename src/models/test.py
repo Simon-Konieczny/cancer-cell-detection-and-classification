@@ -18,7 +18,7 @@ def visualize_batch(dataloader):
     plt.show()
 
 # Classification
-train_loader = DataLoader(ClsDataset("./data/processed/pooled_Mammos", split="test"), 
+train_loader = DataLoader(ClsDataset("./data/processed/pooled_USG", split="test"), 
                           batch_size=16,)
 visualize_batch(train_loader)
 

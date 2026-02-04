@@ -42,10 +42,10 @@ if __name__ == "__main__":
     else:
         from class_ablation_study import run_ablation_study
         model = run_ablation_study(
-            # processed_dir="./data/processed/pooled_USG",
-            processed_dir="./data/processed/pooled_Mammos",
+            processed_dir="./data/processed/pooled_USG",
+            # processed_dir="./data/processed/pooled_Mammos",
             logger=logger,
-            batch_size=8,
+            batch_size=4,
             k_folds=5,
             epochs=75,
         )

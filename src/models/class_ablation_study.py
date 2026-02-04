@@ -2,7 +2,7 @@ import torch
 from torch import nn, optim
 import pandas as pd
 from torch.utils.data import DataLoader
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report
 import numpy as np
 from pathlib import Path
@@ -17,26 +17,29 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
     root = Path(processed_dir)
     results = []
     full_df = pd.read_csv(root / "metadata.csv")
+    label_map = {"benign": 0, "malignant": 1, "normal": 2}
+    full_df["label_idx"] = full_df["label"].str.lower().map(label_map)
 
     device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
+    elif device.type == 'mps':
+        torch.mps.empty_cache()
     print(f"Using device: {device}")
 
     # define experiments
     experiments = [
     # Block 1: The "Evolution" (Baseline to Final)
-    # {"name": "Baseline (ConvNeXt + CE)", "roi": False, "loss": "CE", "swa": False, "model": "convnext_small"},
-    # {"name": "+ ROI Cropping", "roi": True, "loss": "CE", "swa": False, "model": "convnext_small"},
-    # {"name": "+ Focal Loss", "roi": True, "loss": "Focal", "swa": False, "model": "convnext_small"},
+    {"name": "Baseline (ConvNeXt + CE)", "roi": False, "loss": "CE", "swa": False, "model": "convnext_small"},
+    {"name": "+ ROI Cropping", "roi": True, "loss": "CE", "swa": False, "model": "convnext_small"},
+    {"name": "+ Focal Loss", "roi": True, "loss": "Focal", "swa": False, "model": "convnext_small"},
     
     # Block 2: Architectural Comparison
     {"name": "Architecture: Hybrid_MaxViT", "roi": True, "loss": "Focal", "swa": False, "model": "maxvit_tiny_tf_512"},
     {"name": "ViT_Swin_Tiny", "model": "swin_tiny_patch4_window7_224", "roi": True, "loss": "Focal", "swa": False},
     {"name": "Architecture: EfficientNetV2-S", "roi": True, "loss": "Focal", "swa": False, "model": "efficientnetv2_rw_s"},
     
-    # Block 3: Scheduler Comparison (Adaptivity Study)
-    # {"name": "Scheduler: OneCycleLR", "roi": True, "loss": "Focal", "swa": False, "model": "convnext_small", "sched": "onecycle"},
-    
-    # Block 4: Final Proposed Model
+    # Block 3: Final Proposed Model
     {"name": "Final (ROI+Focal+SWA)", "roi": True, "loss": "Focal", "swa": True, "model": "convnext_small", "sched": "plateau"},
 ]
 
@@ -52,19 +55,20 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
             logger.info(f"RUNNING EXPERIMENT: {exp['name']}")
 
             model_name = exp.get("model", "convnext_small")
+            img_size = 672 if model_name.startswith("swin_tiny") else 640
 
-            kf = KFold(n_splits=k_folds, shuffle=True, random_state=42)
+            kf = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=42)
             exp_f1s, exp_aucs = [], []
 
-            for fold, (train_idx, val_idx) in enumerate(kf.split(full_df)):
+            for fold, (train_idx, val_idx) in enumerate(kf.split(full_df, full_df["label_idx"])):
                 # create fold datasets
-                train_ds = Dataset(processed_dir, split="train", indices=train_idx, use_roi=exp['roi'])
-                val_ds = Dataset(processed_dir, split="val", indices=val_idx, use_roi=exp['roi'])
+                train_ds = Dataset(processed_dir, split="train", indices=train_idx, use_roi=exp['roi'], img_size=img_size)
+                val_ds = Dataset(processed_dir, split="val", indices=val_idx, use_roi=exp['roi'], img_size=img_size)
 
                 train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
                 val_loader = DataLoader(val_ds, batch_size=batch_size)
 
-                model = get_model(model_name=model_name).to(device)
+                model = get_model(model_name=model_name, input_size=img_size).to(device)
                 classifier_params = []
                 backbone_params = []
 
@@ -85,7 +89,7 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
                 criterion = FocalLossClassification(alpha=weights) if exp['loss'] == "Focal" else nn.CrossEntropyLoss()
 
                 if exp['swa']:
-                    trained_model = _train_with_swa(model, optimizer, criterion, scheduler, train_loader, val_loader, device, epochs)
+                    trained_model = _train_with_swa(model, optimizer, criterion, scheduler, train_loader, val_loader, device, 45, logger)
                 else:
                     trained_model = _train_with_stop(model, optimizer, criterion, scheduler, train_loader, val_loader, device, epochs, warm_up_epochs=5, patience=12)
 

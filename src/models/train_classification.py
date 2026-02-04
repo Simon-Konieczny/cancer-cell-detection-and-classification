@@ -1,12 +1,13 @@
 import torch
 from class_models import get_model
 from sklearn.metrics import f1_score, classification_report, roc_auc_score
-from sklearn.preprocessing import LabelBinarizer
+from sklearn.preprocessing import LabelBinarizer, label_binarize
 from tqdm import tqdm
 from timm.data.mixup import Mixup
 import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn.functional as F
+from torch.cuda.amp import autocast, GradScaler
 from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
 
 def _train_with_stop(model, optimizer, criterion, scheduler, train_loader, val_loader, device, epochs, warm_up_epochs, patience):
@@ -15,15 +16,18 @@ def _train_with_stop(model, optimizer, criterion, scheduler, train_loader, val_l
     best_model_wts = None
 
     for epoch in range(1, epochs + 1):
-        if epoch <= warm_up_epochs:
+        if epoch == 1:
             for name, param in model.named_parameters():
                 param.requires_grad = ("classifier" in name or "head" in name)
-        else:
+        elif epoch == warm_up_epochs + 1:
             for param in model.parameters():
                 param.requires_grad = True
+            print("--- Warm-up finished: Unfreezing all layers ---")
         correct, total = 0, 0
+        if device.type == 'cuda':
+            scaler = GradScaler()
 
-        train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, criterion, device, correct, total)
+        train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, criterion, device, correct, total, scaler=scaler)
         val_loss, val_f1, avg_auc, all_probs, all_labels = _validate(model, criterion, val_loader, device, best_f1)
 
         scheduler.step(val_f1)
@@ -49,38 +53,34 @@ def _train_with_stop(model, optimizer, criterion, scheduler, train_loader, val_l
         model.load_state_dict(best_model_wts)
     return model
 
-def train_one_epoch(model, loader, optimizer, criterion, device, correct, total):
+def train_one_epoch(model, loader, optimizer, criterion, device, correct, total, scaler=None):
     model.train()
     running_loss = 0.0
-    # mixup_fn = Mixup(
-    #     mixup_alpha=0.2, 
-    #     cutmix_alpha=1.0, 
-    #     prob=0.5, 
-    #     switch_prob=0.5, 
-    #     mode='batch',
-    #     label_smoothing=0.1, 
-    #     num_classes=3
-    # )
 
     pbar = tqdm(loader, desc="Training")
     for imgs, labels in pbar:
-        # imgs, labels = mixup_fn(imgs, labels)
         imgs, labels = imgs.to(device), labels.to(device)
-        
         optimizer.zero_grad()
-        outputs = model(imgs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
 
+        if scaler and device.type == 'cuda':
+            with autocast():
+                outputs = model(imgs)
+                loss = criterion(outputs, labels)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            outputs = model(imgs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
         running_loss += loss.item() * imgs.size(0)
         correct += (outputs.argmax(1) == labels).sum().item()
         total += labels.size(0)
 
     return running_loss / total, correct / total
 
-def _train_with_swa(model, optimizer, criterion, standard_scheduler, train_loader, val_loader, device, epochs):
-    # 1. Initialize SWA components
+def _train_with_swa(model, optimizer, criterion, standard_scheduler, train_loader, val_loader, device, epochs, logger):
     swa_model = AveragedModel(model)
     swa_scheduler = SWALR(optimizer, swa_lr=5e-5)
     swa_start = int(epochs * 0.75) # Start SWA at 75% of training
@@ -90,17 +90,18 @@ def _train_with_swa(model, optimizer, criterion, standard_scheduler, train_loade
     for epoch in range(1, epochs + 1):
         correct, total = 0, 0
         train_one_epoch(model, train_loader, optimizer, criterion, device, correct, total)
-        _, val_f1, _, _, _ = _validate(model, criterion, val_loader, device, best_f1)
+        val_loss, val_f1, _, _, _ = _validate(model, criterion, val_loader, device, best_f1)
+        logger.info(f"Epoch {epoch} | Val Loss: {val_loss:.4f} | Val F1: {val_f1:.4f}")
         
-        # 2. Decide between standard and SWA scheduling
         if epoch > swa_start:
             swa_model.update_parameters(model)
             swa_scheduler.step()
         else:
             standard_scheduler.step(val_f1)
 
-    # 3. Final Step: Update Batch Normalization for the averaged model
     update_bn(train_loader, swa_model, device=device)
+    _, final_f1, final_auc, _, _ = _validate(swa_model, criterion, val_loader, device)
+    print(f"Final SWA Model Results -> F1: {final_f1:.4f} | AUC: {final_auc:.4f}")
     return swa_model
 
 def _validate(model, criterion, loader, device, best_f1=None):
@@ -108,29 +109,52 @@ def _validate(model, criterion, loader, device, best_f1=None):
     running_loss, all_preds, all_labels, all_probs = 0.0, [], [], []
 
     with torch.no_grad():
-        for imgs, labels in loader:
-            imgs, labels = imgs.to(device), labels.to(device)
-            outputs = model(imgs)
-            loss = criterion(outputs, labels)
+        if device.type == 'cuda':
+            with autocast():
+                for imgs, labels in loader:
+                    imgs, labels = imgs.to(device), labels.to(device)
+                    outputs = model(imgs)
+                    loss = criterion(outputs, labels)
+                    running_loss += loss.item() * imgs.size(0)
+                    probs = torch.softmax(outputs, dim=1)
+                    preds = torch.argmax(outputs, dim=1)
+                    
+                    all_probs.extend(probs.cpu().numpy())
+                    all_preds.extend(preds.cpu().numpy())
+                    all_labels.extend(labels.cpu().numpy())
+        else:
+            for imgs, labels in loader:
+                imgs, labels = imgs.to(device), labels.to(device)
+                outputs = model(imgs)
+                loss = criterion(outputs, labels)
 
-            running_loss += loss.item() * imgs.size(0)
-            probs = torch.softmax(outputs, dim=1)
-            preds = torch.argmax(outputs, dim=1)
-            
-            all_probs.extend(probs.cpu().numpy())
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
+                running_loss += loss.item() * imgs.size(0)
+                probs = torch.softmax(outputs, dim=1)
+                preds = torch.argmax(outputs, dim=1)
+                
+                all_probs.extend(probs.cpu().numpy())
+                all_preds.extend(preds.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
 
+    all_probs_np = np.array(all_probs)
+    all_labels_np = np.array(all_labels)
+    all_preds_np = np.array(all_preds)
     avg_loss = running_loss / len(loader.dataset)
-    avg_f1 = f1_score(all_labels, all_preds, average='macro')
+    avg_f1 = f1_score(all_labels_np, all_preds_np, average='macro')
     # plot_confusion_matrix(all_labels, all_preds)
-
-    # Calculate Macro ROC-AUC
-    lb = LabelBinarizer()
-    lb.fit(all_labels)
-    all_labels_bin = lb.transform(all_labels)
-    # multi_class='ovr' handles the 3 classes correctly
-    avg_auc = roc_auc_score(all_labels_bin, all_probs, multi_class='ovr', average='macro')
+    
+    all_labels_bin = label_binarize(all_labels_np, classes=[0, 1, 2])
+    
+    unique_classes = np.unique(all_labels_np)
+    if len(unique_classes) > 1:
+        try:
+            avg_auc = roc_auc_score(all_labels_bin, all_probs_np, multi_class='ovr', average='macro')
+        except Exception as e:
+            print(f"AUC Error: {e}")
+            avg_auc = 0.0
+    else:
+        print("Warning: Only one class present in validation split. AUC set to 0.5")
+        avg_auc = 0.5
 
     if best_f1 and avg_f1 > best_f1:
         print("\n[Detailed Report]")
@@ -203,43 +227,3 @@ def _tta_validate(model, loader, device, best_biases=None):
         
     preds = np.argmax(all_probs, axis=1)
     return all_probs, all_labels, preds
-
-
-# def get_balanced_sampler(dataset):
-#     labels = [dataset.label_map[str(l).lower().strip()] for l in dataset.df['label']]
-#     labels_tensor = torch.tensor(labels)
-    
-#     class_sample_count = torch.bincount(labels_tensor)
-#     weight = 1. / class_sample_count.float()
-
-#     samples_weight = weight[labels_tensor]
-    
-#     sampler = torch.utils.data.WeightedRandomSampler(
-#         weights=samples_weight.tolist(), 
-#         num_samples=len(samples_weight), 
-#         replacement=True
-#     )
-    
-#     return sampler
-
-# def get_scheduler(optimizer, epochs, warmup_epochs=5):
-#     # 1. Linear Warmup: starts at 10% of LR and reaches 100% at warmup_epochs
-#     warmup_lr_lambda = lambda epoch: min(1.0, (epoch + 1) / warmup_epochs)
-#     warmup_scheduler = LambdaLR(optimizer, lr_lambda=warmup_lr_lambda)
-    
-#     main_scheduler = CosineAnnealingLR(optimizer, T_max=(epochs - warmup_epochs) / 2, eta_min=1e-6)
-    
-#     scheduler = SequentialLR(optimizer, 
-#                              schedulers=[warmup_scheduler, main_scheduler], 
-#                              milestones=[warmup_epochs])
-#     return scheduler
-
-# def plot_confusion_matrix(all_labels, all_preds):
-#     cm = confusion_matrix(all_labels, all_preds)
-#     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Benign", "Malignant", "Normal"])
-    
-#     fig, ax = plt.subplots(figsize=(8, 6))
-#     disp.plot(cmap='Blues', ax=ax)
-#     plt.title(f"Confusion Matrix")
-#     plt.savefig('./data/processed/pooled_Mammos.png')
-#     plt.close()
