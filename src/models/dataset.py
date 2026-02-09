@@ -8,6 +8,7 @@ import pandas as pd
 from pathlib import Path
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+from sklearn.utils.class_weight import compute_class_weight
 import numpy as np
 
 def get_bbox(img):
@@ -34,6 +35,8 @@ class ClassificationDataset(Dataset):
         else:
             self.df = df[df["split"] == split].reset_index(drop=True)
         self.images_dir = self.root / "images"
+
+        self.weights = compute_class_weight(class_weight='balanced', classes=np.unique(self.df["label"]), y=self.df["label"])
 
         # ImageNet constants
         mean = (0.485, 0.456, 0.406)

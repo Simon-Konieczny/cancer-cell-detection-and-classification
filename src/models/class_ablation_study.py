@@ -65,6 +65,10 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
                 train_ds = Dataset(processed_dir, split="train", indices=train_idx, use_roi=exp['roi'], img_size=img_size)
                 val_ds = Dataset(processed_dir, split="val", indices=val_idx, use_roi=exp['roi'], img_size=img_size)
 
+                weights = train_ds.weights
+                print(f"Class weights: {weights}")
+                weights = torch.tensor(weights, dtype=torch.float32).to(device)
+
                 train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
                 val_loader = DataLoader(val_ds, batch_size=batch_size)
 
@@ -85,7 +89,6 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
 
                 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3, threshold=0.001)
 
-                weights = torch.tensor([2.2, 1.8, 1.4]).to(device)
                 criterion = FocalLossClassification(alpha=weights) if exp['loss'] == "Focal" else nn.CrossEntropyLoss()
 
                 if exp['swa']:
