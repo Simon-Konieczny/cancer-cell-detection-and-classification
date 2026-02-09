@@ -10,7 +10,7 @@ from pathlib import Path
 from dataset import ClassificationDataset as Dataset
 from class_models import get_model
 from losses import FocalLossClassification
-from train_classification import _validate, _train_with_stop, _train_with_swa, _find_best_thresholds, _tta_validate
+from train_classification import _validate, _train_with_stop, _train_with_swa, _find_best_thresholds, _tta_validate, _save_history
 
 
 def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
@@ -30,14 +30,14 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
     # define experiments
     experiments = [
     # Block 1: The "Evolution" (Baseline to Final)
-    {"name": "Baseline (ConvNeXt + CE)", "roi": False, "loss": "CE", "swa": False, "model": "convnext_small"},
-    {"name": "+ ROI Cropping", "roi": True, "loss": "CE", "swa": False, "model": "convnext_small"},
+    # {"name": "Baseline (ConvNeXt + CE)", "roi": False, "loss": "CE", "swa": False, "model": "convnext_small"},
+    # {"name": "+ ROI Cropping", "roi": True, "loss": "CE", "swa": False, "model": "convnext_small"},
     {"name": "+ Focal Loss", "roi": True, "loss": "Focal", "swa": False, "model": "convnext_small"},
     
     # Block 2: Architectural Comparison
-    {"name": "Architecture: Hybrid_MaxViT", "roi": True, "loss": "Focal", "swa": False, "model": "maxvit_tiny_tf_512"},
-    {"name": "ViT_Swin_Tiny", "model": "swin_tiny_patch4_window7_224", "roi": True, "loss": "Focal", "swa": False},
-    {"name": "Architecture: EfficientNetV2-S", "roi": True, "loss": "Focal", "swa": False, "model": "efficientnetv2_rw_s"},
+    # {"name": "Architecture: Hybrid_MaxViT", "roi": True, "loss": "Focal", "swa": False, "model": "maxvit_tiny_tf_512"},
+    # {"name": "ViT_Swin_Tiny", "model": "swin_tiny_patch4_window7_224", "roi": True, "loss": "Focal", "swa": False},
+    # {"name": "Architecture: EfficientNetV2-S", "roi": True, "loss": "Focal", "swa": False, "model": "efficientnetv2_rw_s"},
     
     # Block 3: Final Proposed Model
     {"name": "Final (ROI+Focal+SWA)", "roi": True, "loss": "Focal", "swa": True, "model": "convnext_small"},
@@ -92,9 +92,12 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
                 criterion = FocalLossClassification(alpha=weights) if exp['loss'] == "Focal" else nn.CrossEntropyLoss()
 
                 if exp['swa']:
-                    trained_model = _train_with_swa(model, optimizer, criterion, scheduler, train_loader, val_loader, device, 45, logger)
+                    trained_model, history = _train_with_swa(model, optimizer, criterion, scheduler, train_loader, val_loader, device, 45, logger)
                 else:
-                    trained_model = _train_with_stop(model, optimizer, criterion, scheduler, train_loader, val_loader, device, epochs, warm_up_epochs=5, patience=12)
+                    trained_model, history = _train_with_stop(model, optimizer, criterion, scheduler, train_loader, val_loader, device, epochs, warm_up_epochs=5, patience=12)
+
+                # save training history
+                _save_history(history, Path(processed_dir) / f"ablation_{exp['name'].lower().replace(' ', '_')}_fold{fold+1}_history.csv")
 
                 # evaluate this fold
                 _, fold_f1,auc, all_probs, all_labels = _validate(trained_model, criterion, val_loader, device)

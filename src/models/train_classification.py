@@ -9,11 +9,18 @@ import numpy as np
 import torch.nn.functional as F
 from torch.cuda.amp import autocast, GradScaler
 from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
+import pandas as pd
 
 def _train_with_stop(model, optimizer, criterion, scheduler, train_loader, val_loader, device, epochs, warm_up_epochs, patience):
     best_f1, val_f1 = 0.0, 0.0
     early_stop_counter = 0
     best_model_wts = None
+    history = {
+        "train_loss": [],
+        "val_loss": [],
+        "val_f1": [],
+        "lr": []
+    }
 
     for epoch in range(1, epochs + 1):
         if epoch == 1:
@@ -24,11 +31,17 @@ def _train_with_stop(model, optimizer, criterion, scheduler, train_loader, val_l
                 param.requires_grad = True
             print("--- Warm-up finished: Unfreezing all layers ---")
         correct, total = 0, 0
+        scaler=None
         if device.type == 'cuda':
-            scaler = GradScaler()
+            scaler = torch.GradScaler()
 
         train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, criterion, device, correct, total, scaler=scaler)
         val_loss, val_f1, avg_auc, all_probs, all_labels = _validate(model, criterion, val_loader, device, best_f1)
+
+        history["train_loss"].append(train_loss)
+        history["val_loss"].append(val_loss)
+        history["val_f1"].append(val_f1)
+        history["lr"].append(optimizer.param_groups[0]["lr"])
 
         scheduler.step(val_f1)
 
@@ -51,7 +64,7 @@ def _train_with_stop(model, optimizer, criterion, scheduler, train_loader, val_l
 
     if best_model_wts is not None:
         model.load_state_dict(best_model_wts)
-    return model
+    return model, history
 
 def train_one_epoch(model, loader, optimizer, criterion, device, correct, total, scaler=None):
     model.train()
@@ -63,7 +76,7 @@ def train_one_epoch(model, loader, optimizer, criterion, device, correct, total,
         optimizer.zero_grad()
 
         if scaler and device.type == 'cuda':
-            with autocast():
+            with torch.autocast('cuda'):
                 outputs = model(imgs)
                 loss = criterion(outputs, labels)
             scaler.scale(loss).backward()
@@ -84,14 +97,27 @@ def _train_with_swa(model, optimizer, criterion, standard_scheduler, train_loade
     swa_model = AveragedModel(model)
     swa_scheduler = SWALR(optimizer, swa_lr=5e-5)
     swa_start = int(epochs * 0.75) # Start SWA at 75% of training
+    history = {
+        "train_loss": [],
+        "val_loss": [],
+        "val_f1": [],
+        "lr": [],
+        "is_swa": []
+    }
 
     best_f1, val_f1 = 0.0, 0.0
 
     for epoch in range(1, epochs + 1):
         correct, total = 0, 0
-        train_one_epoch(model, train_loader, optimizer, criterion, device, correct, total)
+        train_loss, _ = train_one_epoch(model, train_loader, optimizer, criterion, device, correct, total)
         val_loss, val_f1, _, _, _ = _validate(model, criterion, val_loader, device, best_f1)
         logger.info(f"Epoch {epoch} | Val Loss: {val_loss:.4f} | Val F1: {val_f1:.4f}")
+
+        history["train_loss"].append(train_loss)
+        history["val_loss"].append(val_loss)
+        history["val_f1"].append(val_f1)
+        history["lr"].append(optimizer.param_groups[0]["lr"])
+        history["is_swa"].append(epoch > swa_start)
         
         if epoch > swa_start:
             swa_model.update_parameters(model)
@@ -102,7 +128,7 @@ def _train_with_swa(model, optimizer, criterion, standard_scheduler, train_loade
     update_bn(train_loader, swa_model, device=device)
     _, final_f1, final_auc, _, _ = _validate(swa_model, criterion, val_loader, device)
     print(f"Final SWA Model Results -> F1: {final_f1:.4f} | AUC: {final_auc:.4f}")
-    return swa_model
+    return swa_model, history
 
 def _validate(model, criterion, loader, device, best_f1=None):
     model.eval()
@@ -227,3 +253,7 @@ def _tta_validate(model, loader, device, best_biases=None):
         
     preds = np.argmax(all_probs, axis=1)
     return all_probs, all_labels, preds
+
+def _save_history(history, path):
+    df = pd.DataFrame(history)
+    df.to_csv(path, index=False)
