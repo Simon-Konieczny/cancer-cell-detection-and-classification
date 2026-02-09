@@ -40,7 +40,7 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
     {"name": "Architecture: EfficientNetV2-S", "roi": True, "loss": "Focal", "swa": False, "model": "efficientnetv2_rw_s"},
     
     # Block 3: Final Proposed Model
-    {"name": "Final (ROI+Focal+SWA)", "roi": True, "loss": "Focal", "swa": True, "model": "convnext_small", "sched": "plateau"},
+    {"name": "Final (ROI+Focal+SWA)", "roi": True, "loss": "Focal", "swa": True, "model": "convnext_small"},
 ]
 
     for exp in experiments:
