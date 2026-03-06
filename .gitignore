@@ -214,3 +214,5 @@ __marimo__/
 /src/data/config.yaml
 *.png
 /runs
+/gradcam_outputs
+/loss_curves

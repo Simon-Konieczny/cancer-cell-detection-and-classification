@@ -32,15 +32,21 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
     # Block 1: The "Evolution" (Baseline to Final)
     # {"name": "Baseline (ConvNeXt + CE)", "roi": False, "loss": "CE", "swa": False, "model": "convnext_small"},
     # {"name": "+ ROI Cropping", "roi": True, "loss": "CE", "swa": False, "model": "convnext_small"},
-    {"name": "+ Focal Loss", "roi": True, "loss": "Focal", "swa": False, "model": "convnext_small"},
+    # {"name": "+ Focal Loss", "roi": True, "loss": "Focal", "swa": False, "model": "convnext_small"},
     
     # Block 2: Architectural Comparison
     # {"name": "Architecture: Hybrid_MaxViT", "roi": True, "loss": "Focal", "swa": False, "model": "maxvit_tiny_tf_512"},
-    # {"name": "ViT_Swin_Tiny", "model": "swin_tiny_patch4_window7_224", "roi": True, "loss": "Focal", "swa": False},
+    {"name": "Architecture: Hybrid_MaxViT", "roi": False, "loss": "CE", "swa": False, "model": "maxvit_tiny_tf_512"},
+
+    # run these on USG
+    # {"name": "ViT_Swin_Tiny", "model": "swin_tiny_patch4_window7_224", "roi": False, "loss": "CE", "swa": False},
+    # {"name": "ViT_Swin_Tiny_SWA", "model": "swin_tiny_patch4_window7_224", "roi": True, "loss": "Focal", "swa": True},
+
     # {"name": "Architecture: EfficientNetV2-S", "roi": True, "loss": "Focal", "swa": False, "model": "efficientnetv2_rw_s"},
+    {"name": "Architecture: EfficientNetV2-S", "roi": False, "loss": "CE", "swa": False, "model": "efficientnetv2_rw_s"},
     
     # Block 3: Final Proposed Model
-    {"name": "Final (ROI+Focal+SWA)", "roi": True, "loss": "Focal", "swa": True, "model": "convnext_small"},
+    # {"name": "Final (ROI+Focal+SWA)", "roi": True, "loss": "Focal", "swa": True, "model": "convnext_small"},
 ]
 
     for exp in experiments:

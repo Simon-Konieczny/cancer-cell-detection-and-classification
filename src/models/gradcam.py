@@ -1,113 +1,123 @@
 import torch
-import torch.nn.functional as F
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
-from cnn import MedicalResNet
+import torch.nn as nn
+import os
+from torchcam.methods import GradCAMpp
+from torchcam.utils import overlay_mask
+from torchvision.transforms.functional import to_pil_image
+import pandas as pd
+from torch.optim.swa_utils import AveragedModel
+
+from dataset import ClassificationDataset as Dataset
+from torch.utils.data import DataLoader
 from class_models import get_model
-
-class GradCAM:
-    def __init__(self, model, target_layer):
-        self.model = model
-        self.target_layer = target_layer
-        self.gradients = None
-        self.activations = None
-        
-        self.target_layer.register_forward_hook(self.save_activation)
-        
-        self.target_layer.register_full_backward_hook(self.save_gradient)
-
-    def save_activation(self, module, input, output):
-        self.activations = output
-
-    def save_gradient(self, module, grad_input, grad_output):
-        self.gradients = grad_output[0]
-
-    def generate_heatmap(self, input_tensor, class_idx=None):
-        self.model.eval()
-        output = self.model(input_tensor)
-        
-        if class_idx is None:
-            class_idx = output.argmax(dim=1).item()
-        
-        self.model.zero_grad()
-        output[0, class_idx].backward()
-
-        # Weight the channels by the corresponding gradients
-        assert self.gradients is not None, "Gradients were not captured"
-        assert self.activations is not None, "Activations were not captured"
-        weights = torch.mean(self.gradients, dim=(2, 3), keepdim=True)
-        heatmap = torch.sum(weights * self.activations, dim=1).squeeze()
-
-        heatmap = F.relu(heatmap)
-        
-        # Avoid division by zero if gradients are all zero
-        max_val = torch.max(heatmap)
-        if max_val > 0:
-            heatmap /= max_val
+def get_last_layer_name(model):
+    """
+    Specifically targets the last spatial block in timm models, 
+    skipping the non-spatial 'head' and 'norm' layers.
+    """
+    # Specifically for Swin/MaxViT/EfficientNet
+    # We want the last layer that produces a 2D feature map.
+    for name, module in reversed(list(model.named_modules())):
+        # Skip the final global norm and head
+        if "head" in name or "norm" == name.split('.')[-1]:
+            continue
             
-        return heatmap.detach().cpu().numpy()
+        # For CNNs: The last Convolution
+        if isinstance(module, nn.Conv2d):
+            return name
+            
+        # For ViTs: The last Transformer Block (usually contains the spatial patches)
+        # In timm Swin/MaxViT, these are often named 'layers.X.blocks.Y'
+        if "blocks" in name and "." in name:
+            # We want the block itself, not a sub-layer inside it
+            return name
+            
+    return None
 
-def prepare_input(device, image_path):
-    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+device = torch.device(
+    "mps" if torch.backends.mps.is_available() 
+    else "cuda" if torch.cuda.is_available() 
+    else "cpu"
+    )
     
-    img_tensor = torch.from_numpy(img).float() / 255.0
-    img_tensor = img_tensor.unsqueeze(0)
-    
-    input_batch = img_tensor.unsqueeze(0)
-    
-    return input_batch.to(device)
+if device.type == 'cuda':
+    torch.cuda.empty_cache()
+elif device.type == 'mps':
+    torch.mps.empty_cache()
 
-def save_gradcam_result(original_img_path, heatmap, output_path):
-    img = cv2.imread(original_img_path)
-    assert img is not None, f"Failed to load image from {original_img_path}"
-    img = cv2.resize(img, (heatmap.shape[1], heatmap.shape[0]))
-    
-    heatmap = (256 * heatmap).astype(np.uint8)
-    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+print(f"Using device: {device}")
 
-    superimposed_img = cv2.addWeighted(img, 0.6, heatmap, 0.4, 0)
-    cv2.imwrite(output_path, superimposed_img)
+folders = ["pooled_Mammos", "pooled_USG"]
+folder = folders[0]
+file_name = "/ablation_vit_swin_tiny_swa_fold4.pth"
 
-def plot_comparison(original_img, heatmap, output_path="result.png"):    
-    # Resize heatmap to match original image
-    heatmap_resized = cv2.resize(heatmap, (original_img.shape[1], original_img.shape[0]))
-    heatmap_uint8 = np.uint8(255 * heatmap_resized)
-    if heatmap_uint8.ndim == 3:
-        heatmap_uint8 = cv2.cvtColor(heatmap_uint8, cv2.COLOR_BGR2GRAY)
-    heatmap_uint8 = np.ascontiguousarray(heatmap_uint8, dtype=np.uint8)
-    heatmap_color = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
-    heatmap_color = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
-
-    # Create the Superimposed image
-    img_rgb = cv2.cvtColor(original_img, cv2.COLOR_GRAY2RGB)
-    overlay = cv2.addWeighted(img_rgb, 0.6, heatmap_color, 0.4, 0)
-
-    # Plotting
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    axes[0].imshow(original_img, cmap='gray')
-    axes[0].set_title("Original Mammogram")
-    
-    axes[1].imshow(heatmap_color)
-    axes[1].set_title("Grad-CAM Heatmap")
-    
-    axes[2].imshow(overlay)
-    axes[2].set_title("Diagnostic Overlay")
-    
-    for ax in axes: ax.axis('off')
-    
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.show()
+model_name = "swin_tiny_patch4_window7_224"
 
 
-device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-model = get_model(model_name="convnext_small.fb_in22k_ft_in1k")
-model.load_state_dict(torch.load('./data/processed/pooled_Mammos/best_classification_model.pth'))
-model.to(device)
-model.eval()
-cam = GradCAM(model,)
-batch = prepare_input(device, './data/processed/BrCaWisconsin/images/0af7cc840a48436da112978750a5c151.png')
-heatmap = cam.generate_heatmap(batch)
-# save_gradcam_result('./data/processed/BrCaWisconsin/images/0af7cc840a48436da112978750a5c151.png', heatmap, 'example.png')
-plot_comparison(cv2.imread('./data/processed/BrCaWisconsin/images/0af7cc840a48436da112978750a5c151.png', cv2.IMREAD_GRAYSCALE), heatmap, output_path="./src/models/gradcam_comparison.png")
+model = get_model(model_name=model_name)
+model = AveragedModel(model)
+state_dict = torch.load("./data/processed/" + folder + file_name, map_location=device)
+model.load_state_dict(state_dict)
+model.to(device).eval()
+
+target_layer = get_last_layer_name(model)
+print(f"Visualizing focus at layer: {target_layer}")
+
+# ds = Dataset("./data/processed/pooled_Mammos", split="train")
+ds = Dataset("./data/processed/" + folder, split="train")
+loader = DataLoader(ds, batch_size=4, shuffle=True)
+
+save_dir = "./gradcam_outputs"
+os.makedirs(save_dir, exist_ok=True)
+
+with GradCAMpp(model, target_layer=target_layer) as cam_extractor:
+    for batch_idx, batch in enumerate(loader):
+        images = batch[0].to(device)
+        out = model(images)
+        
+        # 1. Get CAMs
+        # Note: some timm models require the output to be passed explicitly 
+        class_idxs = out.argmax(dim=-1).tolist()
+        multi_layer_cams = cam_extractor(class_idxs, out)
+        
+        # 2. Extract the actual heatmap tensor
+        # Shape is usually [Batch, H, W]
+        cams = multi_layer_cams[0]
+
+        for i in range(images.shape[0]):
+            print(f"Image {i} - Max Activation: {cams[i].max():.4f}, Min: {cams[i].min():.4f}")
+            # 3. Individual Normalization (Crucial for medical images)
+            # This forces the "hottest" part of THIS image to be 1.0 (red)
+            # and the "coldest" to be 0.0 (blue)
+            cam_img = cams[i]
+            cam_min, cam_max = cam_img.min(), cam_img.max()
+            
+            # Prevent division by zero if the heatmap is totally flat
+            if cam_max > cam_min:
+                cam_img = (cam_img - cam_min) / (cam_max - cam_min)
+            else:
+                cam_img = torch.zeros_like(cam_img)
+
+            # 4. Prepare Background (Denormalize)
+            img_tensor = images[i].cpu()
+            # Standard ImageNet denormalization
+            mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+            std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+            img_tensor = img_tensor * std + mean
+            img_pil = to_pil_image(img_tensor.clamp(0, 1))
+
+            # 5. Overlay
+            # Convert heatmap to PIL 'F' mode (float32)
+            mask_pil = to_pil_image(cam_img.cpu(), mode='F')
+            
+            # alpha=0.5: 0 is original image, 1 is heatmap. 
+            # If it's still too blue, lower alpha to 0.3 to see the tissue better
+            result = overlay_mask(img_pil, mask_pil, colormap="jet", alpha=0.5)
+            
+            # 6. Save
+            save_path = os.path.join(save_dir, f"{folder}_{file_name[1:].split('.')[0]}_b{batch_idx}_i{i}.png")
+            result.save(save_path)
+        
+        # Dissertation Tip: Only generate a few samples to check quality first!
+        if batch_idx >= 2: 
+            break
