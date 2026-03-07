@@ -49,9 +49,9 @@ print(f"Using device: {device}")
 
 folders = ["pooled_Mammos", "pooled_USG"]
 folder = folders[0]
-file_name = "/ablation_vit_swin_tiny_swa_fold4.pth"
+file_name = "/ablation_baseline_(convnext_+_ce)_fold1.pth"
 
-model_name = "swin_tiny_patch4_window7_224"
+model_name = "efficientnetv2_rw_s"
 
 
 model = get_model(model_name=model_name)
