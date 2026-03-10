@@ -2,9 +2,6 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-save_dir = "./loss_curves"
-os.makedirs(save_dir, exist_ok=True)
-
 def plot_training_history(csv_file, out_dir):
     df = pd.read_csv(csv_file)
     epochs = range(1, len(df) + 1)
@@ -30,9 +27,14 @@ def plot_training_history(csv_file, out_dir):
 
     plt.tight_layout()
 
-    save_path = os.path.join(out_dir, f"training_history_{os.path.basename(csv_file)}.png")
+    save_path = os.path.join(out_dir, f"training_history_{os.path.basename(csv_file).split('.')[0]}.png")
     plt.savefig(save_path)
     plt.close()
-folder = "pooled_Mammos/"
-file = "ablation_architecture:_hybrid_maxvit_fold2_history.csv"
+
+folder = "pooled_USG/"
+file = "ablation_+_focal_loss_fold1_history.csv"
+
+save_dir = "./loss_curves/" + folder
+os.makedirs(save_dir, exist_ok=True)
+
 plot_training_history("./data/processed/" + folder + file, save_dir)

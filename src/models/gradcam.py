@@ -47,15 +47,15 @@ elif device.type == 'mps':
 
 print(f"Using device: {device}")
 
-folders = ["pooled_Mammos", "pooled_USG"]
+folders = ["pooled_Mammos/", "pooled_USG/"]
 folder = folders[0]
-file_name = "/ablation_baseline_(convnext_+_ce)_fold1.pth"
+file_name = "ablation_+_roi_cropping_fold2.pth"
 
-model_name = "efficientnetv2_rw_s"
+model_name = "convnext_small"
 
 
 model = get_model(model_name=model_name)
-model = AveragedModel(model)
+# model = AveragedModel(model)
 state_dict = torch.load("./data/processed/" + folder + file_name, map_location=device)
 model.load_state_dict(state_dict)
 model.to(device).eval()
@@ -63,11 +63,10 @@ model.to(device).eval()
 target_layer = get_last_layer_name(model)
 print(f"Visualizing focus at layer: {target_layer}")
 
-# ds = Dataset("./data/processed/pooled_Mammos", split="train")
 ds = Dataset("./data/processed/" + folder, split="train")
 loader = DataLoader(ds, batch_size=4, shuffle=True)
 
-save_dir = "./gradcam_outputs"
+save_dir = "./gradcam_outputs/" + folder
 os.makedirs(save_dir, exist_ok=True)
 
 with GradCAMpp(model, target_layer=target_layer) as cam_extractor:
@@ -115,7 +114,7 @@ with GradCAMpp(model, target_layer=target_layer) as cam_extractor:
             result = overlay_mask(img_pil, mask_pil, colormap="jet", alpha=0.5)
             
             # 6. Save
-            save_path = os.path.join(save_dir, f"{folder}_{file_name[1:].split('.')[0]}_b{batch_idx}_i{i}.png")
+            save_path = os.path.join(save_dir, f"{file_name.split('.')[0]}_b{batch_idx}_i{i}.png")
             result.save(save_path)
         
         # Dissertation Tip: Only generate a few samples to check quality first!
