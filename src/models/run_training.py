@@ -33,11 +33,13 @@ if __name__ == "__main__":
     logger = setup_logger()
     
     if input == "s":
-        from train_segmentation import segmentation
-        segmentation(
+        from seg_ablation_study import run_ablation_study
+        model = run_ablation_study(
             processed_dir="./data/processed/pooled_seg_USG",
+            logger=logger,
+            batch_size=4,
+            k_folds=5,
             epochs=100,
-            batch_size=8
         )
     else:
         from class_ablation_study import run_ablation_study

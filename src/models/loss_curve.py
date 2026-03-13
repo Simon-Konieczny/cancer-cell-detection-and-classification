@@ -31,8 +31,8 @@ def plot_training_history(csv_file, out_dir):
     plt.savefig(save_path)
     plt.close()
 
-folder = "pooled_USG/"
-file = "ablation_+_focal_loss_fold1_history.csv"
+folder = "pooled_Mammos/"
+file = "ablation_final_(roi+focal+swa)_fold1_history.csv"
 
 save_dir = "./loss_curves/" + folder
 os.makedirs(save_dir, exist_ok=True)

@@ -36,7 +36,8 @@ class ClassificationDataset(Dataset):
             self.df = df[df["split"] == split].reset_index(drop=True)
         self.images_dir = self.root / "images"
 
-        self.weights = compute_class_weight(class_weight='balanced', classes=np.unique(self.df["label"]), y=self.df["label"])
+        if len(self.df["label"].unique()) < 2:
+            self.weights = compute_class_weight(class_weight='balanced', classes=np.unique(self.df["label"]), y=self.df["label"])
 
         # ImageNet constants
         mean = (0.485, 0.456, 0.406)
@@ -113,26 +114,71 @@ class ClassificationDataset(Dataset):
         return img, label
 
 class SegmentationDataset(Dataset):
-    def __init__(self, processed_dir, split="train"):
+    def __init__(self, processed_dir, split="train", indices=None, target_size=(512, 512), more_augmentation=False):
         self.root = Path(processed_dir)
         df = pd.read_csv(self.root / "metadata.csv")
-        self.df = df[df["split"] == split].reset_index(drop=True)
+        self.target_size = target_size
+        if indices is not None:
+            self.df = df.iloc[indices].reset_index(drop=True)
+        else:
+            self.df = df[df["split"] == split].reset_index(drop=True)
 
         self.images_dir = self.root / "images"
         self.masks_dir = self.root / "masks"
 
         if split == "train":
-            self.transform = A.Compose([
-                A.HorizontalFlip(p=0.5),
-                A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=15, p=0.5),
-                A.ElasticTransform(alpha=0.5, sigma=25, p=0.2),
-                A.GaussNoise(var_limit=(10, 50), p=0.3), 
-                A.RandomBrightnessContrast(p=0.3),
-                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-                ToTensorV2(),
-            ])
+            if more_augmentation:
+                self.transform = A.Compose([
+                    A.Resize(height=target_size[0], width=target_size[1]),
+                    A.HorizontalFlip(p=0.5),
+                    A.VerticalFlip(p=0.1), # Occasional vertical flips for orientation invariance
+                    A.Affine(
+                        translate_percent={"x": (-0.15, 0.15), "y": (-0.15, 0.15)}, 
+                        scale=(0.8, 1.2),
+                        rotate=(-30, 30), 
+                        shear=(-10, 10), # Adds "stretching" effect
+                        p=0.7
+                    ),
+                    # Stronger Elastic Transformation (Key for Ultrasound tissue warping)
+                    A.ElasticTransform(alpha=1.5, sigma=50, p=0.4),
+                    # Simulating Ultrasound Artifacts
+                    A.OneOf([
+                        A.GaussNoise(var_limit=(20, 100), p=1.0),
+                        # A.GaussNoise(std_range=(0.15, 0.4), p=1.0),
+                        A.MultiplicativeNoise(multiplier=(0.8, 1.2), p=1.0), # Speckle-like noise
+                    ], p=0.5),
+                    # Simulating Gain/Lighting variations
+                    A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.6),
+                    A.HueSaturationValue(hue_shift_limit=0, sat_shift_limit=20, val_shift_limit=20, p=0.3),
+                    # Simulating "Shadowing" or "Blur" (Common in poor USG scans)
+                    A.OneOf([
+                        A.GaussianBlur(blur_limit=(3, 7), p=1.0),
+                        A.CoarseDropout(max_holes=4, max_height=20, max_width=20, fill_value=0, p=1.0), # Simulated shadowing
+                    ], p=0.3),
+                    A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                    ToTensorV2(),
+                ])
+            else:
+                self.transform = A.Compose([
+                    A.Resize(height=target_size[0], width=target_size[1]),
+                    A.HorizontalFlip(p=0.5),
+                    A.Affine(
+                        # Use tuples for ranges: (min, max)
+                        translate_percent={"x": (-0.05, 0.05), "y": (-0.05, 0.05)}, 
+                        scale=(0.9, 1.1),  # This means 90% to 110% of original size
+                        rotate=(-15, 15), 
+                        p=0.5
+                    ),
+                    A.ElasticTransform(alpha=0.5, sigma=25, p=0.2),
+                    A.GaussNoise(var_limit=(10, 50), p=0.3), 
+                    # A.GaussNoise(std_range=(0.1, 0.2), p=0.3),
+                    A.RandomBrightnessContrast(p=0.3),
+                    A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                    ToTensorV2(),
+                ])
         else:
             self.transform = A.Compose([
+                A.Resize(height=target_size[0], width=target_size[1]),
                 A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
                 ToTensorV2(),
             ])
@@ -142,21 +188,26 @@ class SegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        img = cv2.imread(str(self.root / "images" / row.img_id))
-        if img is not None:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        mask = cv2.imread(str(self.root / row.mask_path), cv2.IMREAD_GRAYSCALE)
-        if mask is not None:
-                mask = (mask > 127).astype(np.float32)
+        
+        img_path = str(self.root / "images" / row.img_id)
+        img = cv2.imread(img_path)
+        if img is None:
+            raise FileNotFoundError(f"Image not found: {img_path}")
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        mask_path = str(self.root / row.mask_path)
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            # If mask is missing, create a blank one so the batch doesn't break
+            mask = np.zeros((img.shape[0], img.shape[1]), dtype=np.float32)
+        else:
+            mask = (mask > 127).astype(np.float32)
 
         augmented = self.transform(image=img, mask=mask)
         img = augmented['image']
         mask = augmented['mask']
 
-        if not isinstance(mask, torch.Tensor):
-            mask = torch.from_numpy(mask)
-            
         if mask.ndimension() == 2:
             mask = mask.unsqueeze(0)
         
-        return img, mask
+        return img, mask.float()

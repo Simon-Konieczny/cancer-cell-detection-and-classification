@@ -34,9 +34,9 @@ class FocalLossClassification(nn.Module):
             return focal_loss
 
 class HybridLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, pos_weight=None):
         super().__init__()
-        self.bce = BCEWithLogitsLoss()
+        self.bce = BCEWithLogitsLoss(pos_weight=pos_weight)
         self.dice = DiceLoss(mode='binary')
 
     def forward(self, pred, target):
@@ -62,10 +62,10 @@ class HybridFocalDiceLoss(nn.Module):
         return 0.7 * dice_loss + 0.3 * focal_loss
     
 class HybridLoss2(nn.Module):
-    def __init__(self):
+    def __init__(self, pos_weight=None):
         super().__init__()
         self.dice = smp.losses.DiceLoss(mode='binary', from_logits=True)
-        self.bce = nn.BCEWithLogitsLoss()
+        self.bce = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
     def forward(self, pred, target):
         return (0.8 * self.dice(pred, target)) + (0.2 * self.bce(pred, target))

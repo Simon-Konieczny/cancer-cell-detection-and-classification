@@ -48,14 +48,14 @@ elif device.type == 'mps':
 print(f"Using device: {device}")
 
 folders = ["pooled_Mammos/", "pooled_USG/"]
-folder = folders[0]
-file_name = "ablation_+_roi_cropping_fold2.pth"
+folder = folders[1]
+file_name = "ablation_architecture:_efficientnetv2-s_fold5.pth"
 
 model_name = "convnext_small"
 
 
 model = get_model(model_name=model_name)
-# model = AveragedModel(model)
+model = AveragedModel(model)
 state_dict = torch.load("./data/processed/" + folder + file_name, map_location=device)
 model.load_state_dict(state_dict)
 model.to(device).eval()
@@ -63,7 +63,7 @@ model.to(device).eval()
 target_layer = get_last_layer_name(model)
 print(f"Visualizing focus at layer: {target_layer}")
 
-ds = Dataset("./data/processed/" + folder, split="train")
+ds = Dataset("./data/processed/" + folder, indices=[243], split="val")
 loader = DataLoader(ds, batch_size=4, shuffle=True)
 
 save_dir = "./gradcam_outputs/" + folder

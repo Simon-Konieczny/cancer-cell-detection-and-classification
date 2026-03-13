@@ -29,7 +29,7 @@ model_name = "swin_tiny_patch4_window7_224"
 model = get_model(model_name=model_name)
 # model = AveragedModel(model)
 
-folder = "pooled_Mammos"
+folder = "pooled_USG"
 file_name = "/ablation_vit_swin_tiny_fold3.pth"
 state_dict = torch.load("./data/processed/" + folder + file_name, map_location=device)
 model.load_state_dict(state_dict)
@@ -38,7 +38,7 @@ model.to(device).eval()
 # target_layers = [model.module.layers[-1].blocks[-1].norm1] # type: ignore
 target_layers = [model.layers[-1].blocks[-1].norm1] # type: ignore
 
-ds = Dataset("./data/processed/" + folder, split="val")
+ds = Dataset("./data/processed/" + folder, indices=[243], split="val")
 from torch.utils.data import DataLoader
 loader = DataLoader(ds, batch_size=4, shuffle=True)
 

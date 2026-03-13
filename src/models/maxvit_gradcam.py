@@ -28,7 +28,7 @@ model_name = "maxvit_tiny_tf_512"
 model = get_model(model_name=model_name)
 
 folder = "pooled_USG"
-file_name = "/ablation_architecture:_hybrid_maxvit_fold2.pth"
+file_name = "/ablation_architecture:_hybrid_maxvit_fold4.pth"
 state_dict = torch.load("./data/processed/" + folder + file_name, map_location=device)
 model.load_state_dict(state_dict)
 model.to(device).eval()
@@ -39,7 +39,7 @@ model.to(device).eval()
 target_layers = [model.stages[-1].blocks[-1].conv]  # type: ignore
 
 
-ds = Dataset("./data/processed/" + folder, split="train")
+ds = Dataset("./data/processed/" + folder, indices=[243], split="val")
 from torch.utils.data import DataLoader
 loader = DataLoader(ds, batch_size=4, shuffle=True)
 
