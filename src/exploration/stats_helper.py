@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 from itertools import combinations
 
 def clean_dice_scores(file):
@@ -94,9 +95,32 @@ plt.close()
 # --- Plotting the D Heatmap ---
 plt.figure(figsize=(12, 10))
 
-# We use a Log-scale-like normalization or just highlight p < 0.05
-# vmin/vmax set to 0 and 0.05 helps highlight the "significant" areas
-sns.heatmap(d_matrix, annot=True, cmap="RdBu_r", center=0, fmt=".2f")
+data_min = min(-1.0, np.min(d_matrix))
+data_max = max(1.0, np.max(d_matrix))
+boundaries = [data_min, -2.5, -0.8, -0.5, -0.2, 0.2, 0.5, 0.8, 2.5, data_max]
+colors = [
+    "#67001f", # Huge Neg (< -2.5) - Deep Maroon
+    "#b2182b", # Large Neg (-2.5 to -0.8)
+    "#ef8a62", # Med Neg
+    "#fddbc7", # Small Neg
+    "#f7f7f7", # Negligible (-0.2 to 0.2)
+    "#d1e5f0", # Small Pos
+    "#67a9cf", # Med Pos
+    "#2166ac", # Large Pos (0.8 to 2.5)
+    "#053061"  # Huge Pos (> 2.5) - Midnight Blue
+]
+
+custom_cmap = mcolors.ListedColormap(colors)
+norm = mcolors.BoundaryNorm(boundaries, custom_cmap.N)
+
+sns.heatmap(
+    d_matrix, 
+    annot=True, 
+    cmap=custom_cmap, 
+    norm=norm, 
+    fmt=".2f",
+    cbar_kws={'ticks': [-0.8, -0.5, -0.2, 0, 0.2, 0.5, 0.8]} # Ensure colorbar shows thresholds
+)
 
 plt.title("Cohen's d-Values Heatmap")
 plt.xlabel("Experiment (Subtrahend)")

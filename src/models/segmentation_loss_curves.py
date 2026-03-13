@@ -48,7 +48,7 @@ def main(input_root, output_root):
     # Create output directory if it doesn't exist
     dest_path.mkdir(parents=True, exist_ok=True)
 
-    # Use rglob for recursive search (change to .glob if you only want the top level)
+    # Use rglob for recursive search
     csv_files = list(src_path.rglob('*_history.csv'))
 
     if not csv_files:
