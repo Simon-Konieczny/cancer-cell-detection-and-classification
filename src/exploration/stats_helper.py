@@ -26,7 +26,7 @@ def clean_dice_scores(file):
     dice_dict = dict(zip(experiment_names, all_dice_scores))
     return dice_dict, seg_metrics_save_dir
 
-dice_dict, seg_metrics_save_dir = clean_dice_scores("./first_eighteen_seg_results.csv")
+dice_dict, seg_metrics_save_dir = clean_dice_scores("./seg_results.csv")
 
 experiment_pairs = list(combinations(dice_dict.keys(), 2))
 
@@ -37,28 +37,56 @@ n = len(experiment_names)
 
 # Initialize a matrix for p-values (filled with 1.0 because comparing an exp to itself p=1)
 p_matrix = pd.DataFrame(np.ones((n, n)), index=experiment_names, columns=experiment_names)
-d_matrix = pd.DataFrame(np.ones((n, n)), index=experiment_names, columns=experiment_names)
+g_matrix = pd.DataFrame(np.ones((n, n)), index=experiment_names, columns=experiment_names)
 
-def calculate_cohens_d(x1, x2):
-    """Calculates Cohen's d for paired samples (repeated measures)."""
-    diff = np.array(x1) - np.array(x2)
-    # Using the standard deviation of the differences
-    std_diff = np.std(diff, ddof=1)
-    if std_diff == 0:
-        return 0
-    return np.mean(diff) / std_diff
-
-cohens_results = []
-for exp1, exp2 in combinations(experiment_names, 2):
-    d_val = calculate_cohens_d(dice_dict[exp1], dice_dict[exp2])
+def calculate_hedges_g(m1, sd1, m2, sd2, n=5):
+    # 1. Convert population SD (np.std) to sample SD (ddof=1)
+    # Variance_sample = Variance_pop * (n / (n - 1))
+    s1_sq = (sd1**2) * (n / (n - 1))
+    s2_sq = (sd2**2) * (n / (n - 1))
     
-    d_matrix.loc[exp1, exp2] = d_val
-    d_matrix.loc[exp2, exp1] = -d_val
+    # 2. Calculate Pooled Sample Standard Deviation
+    # Since n1 = n2, this is just the square root of the average variance
+    s_pooled = np.sqrt((s1_sq + s2_sq) / 2)
+    
+    if s_pooled == 0:
+        return 0.0
+    
+    # 3. Calculate Cohen's d (unbiased version)
+    d = (m1 - m2) / s_pooled
+    
+    # 4. Apply Hedges' g correction factor (J)
+    df = (2 * n) - 2
+    j = 1 - (3 / (4 * df - 1))
+    
+    return d * j
 
-    cohens_results.append({
+# def calculate_d_from_stats(m1, sd1, m2, sd2):
+#     # m1, sd1 are the mean and std you saved
+#     # Since you used np.std() (ddof=0) to save them, 
+#     # we use them directly here.
+    
+#     pooled_sd = np.sqrt((sd1**2 + sd2**2) / 2)
+    
+#     if pooled_sd == 0:
+#         return 0
+        
+#     return (m1 - m2) / pooled_sd
+
+hedges_results = []
+for exp1, exp2 in combinations(experiment_names, 2):
+    d1 = dice_dict[exp1]
+    d2 = dice_dict[exp2]
+    g_val = calculate_hedges_g(np.mean(d1), np.std(d1), np.mean(d2), np.std(d2))
+    # d_val = calculate_cohens_d(dice_dict[exp1], dice_dict[exp2])
+    
+    g_matrix.loc[exp1, exp2] = g_val
+    g_matrix.loc[exp2, exp1] = -g_val
+
+    hedges_results.append({
         "Exp 1": exp1,
         "Exp 2": exp2,
-        "Cohen's d": round(d_val, 4)
+        "Hedge's g": round(g_val, 4)
     })
     dice1 = dice_dict[exp1]
     dice2 = dice_dict[exp2]
@@ -73,30 +101,32 @@ for exp1, exp2 in combinations(experiment_names, 2):
     p_matrix.loc[exp1, exp2] = p_val # type: ignore
     p_matrix.loc[exp2, exp1] = p_val # type: ignore
 
-pd.DataFrame(cohens_results).to_csv(os.path.join(seg_metrics_save_dir, "cohens_d_results.csv"), index=False)
+pd.DataFrame(hedges_results).to_csv(os.path.join(seg_metrics_save_dir, "hedges_g_results.csv"), index=False)
 
 # --- Plotting the P Heatmap ---
-plt.figure(figsize=(14, 14))
+fig1, ax1 = plt.subplots(figsize=(16,16))
+# plt.figure(figsize=(14, 14))
 
 # We use a Log-scale-like normalization or just highlight p < 0.05
 # vmin/vmax set to 0 and 0.05 helps highlight the "significant" areas
-sns.heatmap(p_matrix, annot=True, cmap="YlGnBu_r", vmin=0, vmax=0.05)
+sns.heatmap(p_matrix, annot=True, cmap="YlGnBu_r", vmin=0, vmax=0.05, ax=ax1)
 
-plt.title("P-Values Heatmap (Wilcoxon Signed-Rank Test)")
-plt.xlabel("Experiment")
-plt.ylabel("Experiment")
+ax1.set_title("P-Values Heatmap (Wilcoxon Signed-Rank Test)")
+ax1.set_xlabel("Experiment")
+ax1.set_ylabel("Experiment")
 plt.tight_layout()
 
 # Save the plot
 plt.savefig(f"{seg_metrics_save_dir}/p_value_heatmap.png")
 plt.show()
-plt.close()
+plt.close(fig1)
 
-# --- Plotting the D Heatmap ---
-plt.figure(figsize=(12, 10))
+# --- Plotting the G Heatmap ---
+fig2, ax2 = plt.subplots(figsize=(14,14))
+# plt.figure(figsize=(12, 10))
 
-data_min = min(-1.0, np.min(d_matrix))
-data_max = max(1.0, np.max(d_matrix))
+data_min = min(-1.0, np.min(g_matrix))
+data_max = max(1.0, np.max(g_matrix))
 boundaries = [data_min, -2.5, -0.8, -0.5, -0.2, 0.2, 0.5, 0.8, 2.5, data_max]
 colors = [
     "#67001f", # Huge Neg (< -2.5) - Deep Maroon
@@ -114,20 +144,21 @@ custom_cmap = mcolors.ListedColormap(colors)
 norm = mcolors.BoundaryNorm(boundaries, custom_cmap.N)
 
 sns.heatmap(
-    d_matrix, 
+    g_matrix, 
     annot=True, 
     cmap=custom_cmap, 
     norm=norm, 
     fmt=".2f",
-    cbar_kws={'ticks': [-0.8, -0.5, -0.2, 0, 0.2, 0.5, 0.8]} # Ensure colorbar shows thresholds
+    cbar_kws={'ticks': [-2.5, -0.8, -0.5, -0.2, 0, 0.2, 0.5, 0.8, 2.5]}, # Ensure colorbar shows thresholds
+    ax=ax2
 )
 
-plt.title("Cohen's d-Values Heatmap")
-plt.xlabel("Experiment (Subtrahend)")
-plt.ylabel("Experiment (Minuend)")
+ax2.set_title("Hedge's g-Values Heatmap")
+ax2.set_xlabel("Experiment (Subtrahend)")
+ax2.set_ylabel("Experiment (Minuend)")
 plt.tight_layout()
 
 # Save the plot
-plt.savefig(f"{seg_metrics_save_dir}/cohens_d_value_heatmap.png")
+plt.savefig(f"{seg_metrics_save_dir}/hedges_g_value_heatmap.png")
 plt.show()
-plt.close()
+plt.close(fig2)

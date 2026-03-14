@@ -58,10 +58,10 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
         # {"name": "Resnet Adam Baseline", "encoder": "resnet34", "optimizer": "adamw", "criterion": "bce_with_logits"},
         # done
         # start 6
-        {"name": "ResNet Adam 0.3 BCE", "encoder": "resnet34", "optimizer": "adamw", "criterion": "hybrid_loss_0.3"},
-        {"name": "ResNet Adam 0.2 BCE", "encoder": "resnet34", "optimizer": "adamw", "criterion": "hybrid_loss_0.2"},
-        {"name": "Resnet Tversky", "encoder": "resnet34", "optimizer": "adamw", "criterion": "tversky"},
-        {"name": "ResNet Adam Focal", "encoder": "resnet34", "optimizer": "adamw", "criterion": "focal_dice"},
+        # {"name": "ResNet Adam 0.3 BCE", "encoder": "resnet34", "optimizer": "adamw", "criterion": "hybrid_loss_0.3"},
+        # {"name": "ResNet Adam 0.2 BCE", "encoder": "resnet34", "optimizer": "adamw", "criterion": "hybrid_loss_0.2"},
+        # {"name": "Resnet Tversky", "encoder": "resnet34", "optimizer": "adamw", "criterion": "tversky"},
+        # {"name": "ResNet Adam Focal", "encoder": "resnet34", "optimizer": "adamw", "criterion": "focal_dice"},
 
         # start 2
         # {"name": "Resnet 224", "encoder": "resnet34", "optimizer": "adamw", "criterion": "tversky", "size": 224},
@@ -76,11 +76,12 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
         # MiT
         # {"name": "MIT-B3 Adam Simple Baseline", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "bce_with_logits"},
         # done
-        #start 7
-        {"name": "MIT-B3 Adam Simple Tversky", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "tversky"},
-        {"name": "MIT-B3 Adam Simple 0.2 BCE", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "hybrid_loss_0.2"},
-        {"name": "MIT-B3 Adam Simple Focal", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "focal_dice"},
-        {"name": "MIT-B3 Adam Simple 0.3 BCE", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "hybrid_loss_0.3"},
+        # {"name": "MIT-B3 Adam Simple Tversky", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "tversky"},
+        # start 7
+        # {"name": "MIT-B3 Adam Simple 0.2 BCE", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "hybrid_loss_0.2"},
+        # {"name": "MIT-B3 Adam Simple Focal", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "focal_dice"},
+        # start 2
+        # {"name": "MIT-B3 Adam Simple 0.3 BCE", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "hybrid_loss_0.3"},
         
         #start 3
         # {"name": "MIT-B3 Adam", "encoder": "mit_b3", "optimizer": "adamw", "criterion": "bce_with_logits"},
@@ -92,11 +93,11 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
         # {"name": "MIT-B3 Aggressive", "encoder": "mit_b3", "optimizer": "adamw", "criterion": "tversky", "aggressive": True},
 
         # {"name": "MIT-B3 224", "encoder": "mit_b3", "optimizer": "adamw", "criterion": "tversky", "size": 224},
-        {"name": "MIT-B3 1024 Tversky", "encoder": "mit_b3", "optimizer": "adamw", "criterion": "tversky", "size": 1024}, # OOM
+        #{"name": "MIT-B3 1024 Tversky", "encoder": "mit_b3", "optimizer": "adamw", "criterion": "tversky", "size": 1024}, # OOM
 
         # {"name": "MIT-B3 PlusPlus Tversky", "encoder": "mit_b3_unet_plus_plus", "optimizer": "adamw", "criterion": "tversky"}, # ERROR: UnetPlusPlus not supported
 
-        {"name": "MIT-B3 DeeplabV3", "encoder": "mit_b3_deeplabv3", "optimizer": "adamw", "criterion": "tversky"}, # OOM
+        #{"name": "MIT-B3 DeeplabV3", "encoder": "mit_b3_deeplabv3", "optimizer": "adamw", "criterion": "tversky"}, # OOM
 
     ]
 

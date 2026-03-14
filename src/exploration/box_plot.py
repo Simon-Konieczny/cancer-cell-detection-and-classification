@@ -5,7 +5,7 @@ from itertools import combinations
 
 from stats_helper import clean_dice_scores
 
-dice_dict, seg_metrics_save_dir = clean_dice_scores("./first_eighteen_seg_results.csv")
+dice_dict, seg_metrics_save_dir = clean_dice_scores("./seg_results.csv")
 
 experiment_pairs = list(combinations(dice_dict.keys(), 2))
 

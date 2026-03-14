@@ -135,10 +135,10 @@ models_to_compare = {
     "ResNet Adam Simple Focal": load_model(get_model_resnet(), "ablation_resnet_adam_simple_focal_fold2.pth", device),
 
     "Resnet Adam Baseline": load_model(get_model_resnet(), "ablation_resnet_adam_baseline_fold2.pth", device),
-    # "Resnet Adam 0.3 BCE": load_model(resnet, ".pth", device),
-    # "Resnet Adam 0.2 BCE": load_model(resnet, ".pth", device),
-    # "Resnet Tversky": load_model(resnet, ".pth", device),
-    # "ResNet Adam Focal": load_model(resnet, ".pth", device),
+    "Resnet Adam 0.3 BCE": load_model(resnet, "ablation_resnet_adam_0.3_bce_fold5.pth", device),
+    "Resnet Adam 0.2 BCE": load_model(resnet, "ablation_resnet_adam_0.2_bce_fold2.pth", device),
+    "Resnet Tversky": load_model(resnet, "ablation_resnet_tversky_fold4.pth", device),
+    "ResNet Adam Focal": load_model(resnet, "ablation_resnet_adam_focal_fold5.pth", device),
 
     "Resnet 224": load_model(get_model_resnet(), "ablation_resnet_224_fold4.pth", device),
     "Resnet 1024": load_model(get_model_resnet(), "ablation_resnet_1024_fold2.pth", device),
@@ -147,10 +147,10 @@ models_to_compare = {
     # "Resnet Deep": load_model(resnet_deeplabv3, ".pth", device),
 
     "MIT-B3 Adam Simple Baseline": load_model(mit_b3, "ablation_mit-b3_adam_simple_baseline_fold2.pth", device),
-    # "MIT-B3 Adam Simple Tversky": load_model(mit_b3, ".pth", device),
-    # "MIT-B3 Adam Simple 0.2 BCE": load_model(mit_b3, ".pth", device),
-    # "MIT-B3 Adam Simple Focal": load_model(mit_b3, ".pth", device),
-    # "MIT-B3 Adam Simple 0.3 BCE": load_model(mit_b3, ".pth", device),
+    "MIT-B3 Adam Simple Tversky": load_model(mit_b3, "ablation_mit-b3_adam_simple_tversky_fold4.pth", device),
+    "MIT-B3 Adam Simple 0.2 BCE": load_model(mit_b3, "ablation_mit-b3_adam_simple_0.2_bce_fold2.pth", device),
+    "MIT-B3 Adam Simple Focal": load_model(mit_b3, "ablation_mit-b3_adam_simple_focal_fold2.pth", device),
+    "MIT-B3 Adam Simple 0.3 BCE": load_model(mit_b3, "ablation_mit-b3_adam_simple_0.3_bce_fold5.pth", device),
     
     "MIT-B3 Adam": load_model(get_mit_b3_model(), "ablation_mit-b3_adam_fold3.pth", device),
     "MIT-B3 Adam Tversky": load_model(get_mit_b3_model(), "ablation_mit-b3_adam_tversky_fold5.pth", device),

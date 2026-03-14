@@ -1,0 +1,56 @@
+Exp 1,Exp 2,Hedge's g
+Architecture: Hybrid_MaxViT,ViT_Swin_Tiny,-0.4124
+Architecture: Hybrid_MaxViT,ViT_Swin_Tiny_SWA,5.9736
+Architecture: Hybrid_MaxViT,Final (ROI+Focal+SWA),-0.8199
+Architecture: Hybrid_MaxViT,Baseline (ConvNeXt + CE),-0.1855
+Architecture: Hybrid_MaxViT,+ ROI Cropping,-2.4598
+Architecture: Hybrid_MaxViT,+ Focal Loss,-0.1143
+Architecture: Hybrid_MaxViT,Architecture: Hybrid_MaxViT + ROI + Focal,-0.3448
+Architecture: Hybrid_MaxViT,ViT_Swin_Tiny + ROI + Focal,-0.3754
+Architecture: Hybrid_MaxViT,Architecture: EfficientNetV2-S + ROI + Focal,2.5773
+Architecture: Hybrid_MaxViT,Architecture: EfficientNetV2-S,2.3942
+ViT_Swin_Tiny,ViT_Swin_Tiny_SWA,4.8787
+ViT_Swin_Tiny,Final (ROI+Focal+SWA),-0.1803
+ViT_Swin_Tiny,Baseline (ConvNeXt + CE),0.2209
+ViT_Swin_Tiny,+ ROI Cropping,-0.6382
+ViT_Swin_Tiny,+ Focal Loss,0.2147
+ViT_Swin_Tiny,Architecture: Hybrid_MaxViT + ROI + Focal,0.0604
+ViT_Swin_Tiny,ViT_Swin_Tiny + ROI + Focal,0.17
+ViT_Swin_Tiny,Architecture: EfficientNetV2-S + ROI + Focal,2.0778
+ViT_Swin_Tiny,Architecture: EfficientNetV2-S,2.0874
+ViT_Swin_Tiny_SWA,Final (ROI+Focal+SWA),-5.8501
+ViT_Swin_Tiny_SWA,Baseline (ConvNeXt + CE),-5.2021
+ViT_Swin_Tiny_SWA,+ ROI Cropping,-7.5008
+ViT_Swin_Tiny_SWA,+ Focal Loss,-4.4833
+ViT_Swin_Tiny_SWA,Architecture: Hybrid_MaxViT + ROI + Focal,-4.9019
+ViT_Swin_Tiny_SWA,ViT_Swin_Tiny + ROI + Focal,-5.9347
+ViT_Swin_Tiny_SWA,Architecture: EfficientNetV2-S + ROI + Focal,-3.6004
+ViT_Swin_Tiny_SWA,Architecture: EfficientNetV2-S,-3.079
+Final (ROI+Focal+SWA),Baseline (ConvNeXt + CE),0.476
+Final (ROI+Focal+SWA),+ ROI Cropping,-0.5963
+Final (ROI+Focal+SWA),+ Focal Loss,0.4176
+Final (ROI+Focal+SWA),Architecture: Hybrid_MaxViT + ROI + Focal,0.2549
+Final (ROI+Focal+SWA),ViT_Swin_Tiny + ROI + Focal,0.4698
+Final (ROI+Focal+SWA),Architecture: EfficientNetV2-S + ROI + Focal,2.7977
+Final (ROI+Focal+SWA),Architecture: EfficientNetV2-S,2.6706
+Baseline (ConvNeXt + CE),+ ROI Cropping,-1.1544
+Baseline (ConvNeXt + CE),+ Focal Loss,0.0253
+Baseline (ConvNeXt + CE),Architecture: Hybrid_MaxViT + ROI + Focal,-0.1583
+Baseline (ConvNeXt + CE),ViT_Swin_Tiny + ROI + Focal,-0.0932
+Baseline (ConvNeXt + CE),Architecture: EfficientNetV2-S + ROI + Focal,2.1411
+Baseline (ConvNeXt + CE),Architecture: EfficientNetV2-S,2.1148
++ ROI Cropping,+ Focal Loss,0.8853
++ ROI Cropping,Architecture: Hybrid_MaxViT + ROI + Focal,0.7458
++ ROI Cropping,ViT_Swin_Tiny + ROI + Focal,1.5129
++ ROI Cropping,Architecture: EfficientNetV2-S + ROI + Focal,4.4938
++ ROI Cropping,Architecture: EfficientNetV2-S,3.8325
++ Focal Loss,Architecture: Hybrid_MaxViT + ROI + Focal,-0.16
++ Focal Loss,ViT_Swin_Tiny + ROI + Focal,-0.1021
++ Focal Loss,Architecture: EfficientNetV2-S + ROI + Focal,1.73
++ Focal Loss,Architecture: EfficientNetV2-S,1.7755
+Architecture: Hybrid_MaxViT + ROI + Focal,ViT_Swin_Tiny + ROI + Focal,0.0985
+Architecture: Hybrid_MaxViT + ROI + Focal,Architecture: EfficientNetV2-S + ROI + Focal,2.0554
+Architecture: Hybrid_MaxViT + ROI + Focal,Architecture: EfficientNetV2-S,2.0632
+ViT_Swin_Tiny + ROI + Focal,Architecture: EfficientNetV2-S + ROI + Focal,2.6756
+ViT_Swin_Tiny + ROI + Focal,Architecture: EfficientNetV2-S,2.5139
+Architecture: EfficientNetV2-S + ROI + Focal,Architecture: EfficientNetV2-S,0.2324
