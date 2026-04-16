@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from torchvision import models
 
+# UNUSED
+
 class BaselineCNN(nn.Module):
     def __init__(self, num_classes=3, dropout_rate=0.5):
         super().__init__()
@@ -85,9 +87,6 @@ class MedicalResNet(nn.Module):
 
         self.resnet = models.resnet50(weights='IMAGENET1K_V1')
         
-        # Modify the first layer to accept 1 channel (Grayscale)
-        # ResNet normally expects 3 (RGB). We sum the weights of the 3 channels 
-        # into 1 to preserve the pre-trained knowledge.
         original_conv = self.resnet.conv1
         self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         

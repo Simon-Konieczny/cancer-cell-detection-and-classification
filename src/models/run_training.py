@@ -6,7 +6,6 @@ import pandas as pd
 def setup_logger(log_dir="./logs"):
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     
-    # Create a unique filename with a timestamp
     log_file = Path(log_dir) / f"ablation_study_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.log"
     
     # Create logger
@@ -16,12 +15,10 @@ def setup_logger(log_dir="./logs"):
     # Formatter: [Timestamp] [Level] Message
     formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s')
     
-    # File Handler (Writes to the file)
     fh = logging.FileHandler(log_file)
     fh.setFormatter(formatter)
     logger.addHandler(fh)
     
-    # Stream Handler (Still prints to your terminal)
     sh = logging.StreamHandler(sys.stdout)
     sh.setFormatter(formatter)
     logger.addHandler(sh)
@@ -51,5 +48,3 @@ if __name__ == "__main__":
             k_folds=5,
             epochs=75,
         )
-
-# idea is to have three clean tables for an ablation study each on pooled_mammos, pooled_usg, and pooled_seg_usg.

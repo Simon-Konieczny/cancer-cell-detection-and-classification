@@ -54,10 +54,10 @@ def get_mit_b3_deeplabv3_model():
 
 def efficient_model():
     model = smp.UnetPlusPlus(
-        encoder_name="efficientnet-b3", # Reliable, high-accuracy encoder
-        encoder_weights="imagenet",     # This definitely exists and works
-        in_channels=3,                  # USG as RGB
-        classes=1,                      # Binary segmentation
-        activation=None                 # No activation for BCEWithLogits
+        encoder_name="efficientnet-b3",
+        encoder_weights="imagenet",
+        in_channels=3,
+        classes=1,
+        activation=None
     )
     return model

@@ -15,21 +15,14 @@ def get_last_layer_name(model):
     Specifically targets the last spatial block in timm models, 
     skipping the non-spatial 'head' and 'norm' layers.
     """
-    # Specifically for Swin/MaxViT/EfficientNet
-    # We want the last layer that produces a 2D feature map.
     for name, module in reversed(list(model.named_modules())):
-        # Skip the final global norm and head
         if "head" in name or "norm" == name.split('.')[-1]:
             continue
             
-        # For CNNs: The last Convolution
         if isinstance(module, nn.Conv2d):
             return name
             
-        # For ViTs: The last Transformer Block (usually contains the spatial patches)
-        # In timm Swin/MaxViT, these are often named 'layers.X.blocks.Y'
         if "blocks" in name and "." in name:
-            # We want the block itself, not a sub-layer inside it
             return name
             
     return None
@@ -74,30 +67,21 @@ with GradCAMpp(model, target_layer=target_layer) as cam_extractor:
         images = batch[0].to(device)
         out = model(images)
         
-        # 1. Get CAMs
-        # Note: some timm models require the output to be passed explicitly 
         class_idxs = out.argmax(dim=-1).tolist()
         multi_layer_cams = cam_extractor(class_idxs, out)
         
-        # 2. Extract the actual heatmap tensor
-        # Shape is usually [Batch, H, W]
         cams = multi_layer_cams[0]
 
         for i in range(images.shape[0]):
             print(f"Image {i} - Max Activation: {cams[i].max():.4f}, Min: {cams[i].min():.4f}")
-            # 3. Individual Normalization (Crucial for medical images)
-            # This forces the "hottest" part of THIS image to be 1.0 (red)
-            # and the "coldest" to be 0.0 (blue)
             cam_img = cams[i]
             cam_min, cam_max = cam_img.min(), cam_img.max()
             
-            # Prevent division by zero if the heatmap is totally flat
             if cam_max > cam_min:
                 cam_img = (cam_img - cam_min) / (cam_max - cam_min)
             else:
                 cam_img = torch.zeros_like(cam_img)
 
-            # 4. Prepare Background (Denormalize)
             img_tensor = images[i].cpu()
             # Standard ImageNet denormalization
             mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
@@ -105,18 +89,12 @@ with GradCAMpp(model, target_layer=target_layer) as cam_extractor:
             img_tensor = img_tensor * std + mean
             img_pil = to_pil_image(img_tensor.clamp(0, 1))
 
-            # 5. Overlay
-            # Convert heatmap to PIL 'F' mode (float32)
             mask_pil = to_pil_image(cam_img.cpu(), mode='F')
             
-            # alpha=0.5: 0 is original image, 1 is heatmap. 
-            # If it's still too blue, lower alpha to 0.3 to see the tissue better
             result = overlay_mask(img_pil, mask_pil, colormap="jet", alpha=0.5)
             
-            # 6. Save
             save_path = os.path.join(save_dir, f"{file_name.split('.')[0]}_b{batch_idx}_i{i}.png")
             result.save(save_path)
         
-        # Dissertation Tip: Only generate a few samples to check quality first!
         if batch_idx >= 2: 
             break

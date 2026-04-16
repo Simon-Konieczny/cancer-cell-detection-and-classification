@@ -31,13 +31,13 @@ The codebase automatically detect and utlizes MPS for Apple Sillicon, CUDA for N
 # 🚀 Execution Pipelines
 1. Data Preprocessing
     The pipeline processes raw images into a standardised format ready for training:
-    - Command: python ./src/data/run.py.
-    - Operations: Includes black-background artifact removal, ROI (Region of Interest) cropping, and image resizing to 224x224 or 640x640 depending on the model.
-    - Output: Processed data is stored in ./data/processed/.
+    - Command: `python ./src/data/run.py`.
+    - Operations: Includes black-background artifact removal, ROI (Region of Interest) cropping, and image resizing to 672x672 or 640x640 depending on the model.
+    - Output: Processed data is stored in `./data/processed/`.
 
 2. Model Training & Ablation Studies
     The repository supports automated ablation studies to compare various techniques:
-    - Command: python ./src/models/run_training.py.
+    - Command: python `./src/models/run_training.py`.
     - Methodology: Supports K-fold cross-validation and allows selection between classification (c) and segmentation (s) tasks.
 
 # 📊 Methodology Highlights

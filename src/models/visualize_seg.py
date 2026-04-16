@@ -21,9 +21,6 @@ def visualize_ablation_results(models_dict, loader, device, save_dir, max_cols=7
     samples_per_block = 3
     usable_cols = 7
     
-    # Calculate how many "sets of rows" we need per sample group to show all models
-    # First row-set shows 1 model (alongside Input/GT). 
-    # Remaining models are shown 3 at a time in subsequent row-sets.
     extra_models = max(0, num_models - 1)
     model_blocks_per_sample_group = 1 + math.ceil(extra_models / usable_cols)
     
@@ -38,12 +35,9 @@ def visualize_ablation_results(models_dict, loader, device, save_dir, max_cols=7
 
     for s_grp_idx in range(num_sample_groups):
         for m_blk_idx in range(model_blocks_per_sample_group):
-            # Iterate through the 3 samples in this block
             for s_offset in range(samples_per_block):
                 sample_idx = s_grp_idx * samples_per_block + s_offset
                 
-                # Calculate the exact row in the big grid
-                # (Sample group offset) + (Model wrap offset) + (Position within the 3 rows)
                 row_idx = (s_grp_idx * model_blocks_per_sample_group * samples_per_block) + \
                           (m_blk_idx * samples_per_block) + s_offset
                 
@@ -56,24 +50,19 @@ def visualize_ablation_results(models_dict, loader, device, save_dir, max_cols=7
                 img, mask = samples[sample_idx]
                 input_tensor = img.to(device)
                 
-                # Prepare Image for plotting
                 image_np = img.squeeze().cpu().numpy()
                 if image_np.ndim == 3: image_np = np.transpose(image_np, (1, 2, 0))
                 image_np = (image_np - image_np.min()) / (image_np.max() - image_np.min() + 1e-8)
                 mask_np = mask.squeeze().cpu().numpy()
 
-                # Case A: First block for these samples (Input + GT + 1st Model)
                 if m_blk_idx == 0:
-                    # Col 0: Input
                     axes[row_idx, 0].imshow(image_np, cmap='gray')
                     axes[row_idx, 0].set_ylabel(f"S{sample_idx} | Input", fontsize=9)
                     
-                    # Col 1: GT
                     axes[row_idx, 1].imshow(image_np, cmap='gray')
                     axes[row_idx, 1].imshow(mask_np, cmap='spring', alpha=0.4)
                     axes[row_idx, 1].set_title("GT", fontsize=9)
                     
-                    # Col 2: First Model (if exists)
                     if num_models > 0:
                         _plot_model_on_ax(axes[row_idx, 2], model_objs[0], model_names[0], 
                                           input_tensor, image_np, device, sample_idx)
@@ -86,11 +75,7 @@ def visualize_ablation_results(models_dict, loader, device, save_dir, max_cols=7
                         _plot_model_on_ax(axes[row_idx, 6], model_objs[4], model_names[4], 
                                           input_tensor, image_np, device, sample_idx)
                 
-                # Case B: Subsequent blocks (Filling 3 models per row)
                 else:
-                    # Logic to find which models to show: 
-                    # 1st model was used in block 0. 
-                    # Block 1 starts at model index 1, Block 2 at index 4, etc.
                     model_start_idx = 1 + (m_blk_idx - 1) * usable_cols
                     
                     for col_offset in range(usable_cols):
@@ -103,19 +88,12 @@ def visualize_ablation_results(models_dict, loader, device, save_dir, max_cols=7
                                               input_tensor, image_np, device, sample_idx)
                         else:
                             ax.axis('off')
-
-                # Strictly hide the last 2 columns as requested
-                # axes[row_idx, 3].axis('off')
-                # axes[row_idx, 4].axis('off')
                 
-                # Hide unused axes in the active row (if m_blk_idx == 0 and num_models == 0)
-                # or if we are in Case A but only have Input/GT.
                 for c in range(usable_cols):
-                    if not axes[row_idx, c].images: # If nothing was plotted
+                    if not axes[row_idx, c].images:
                         axes[row_idx, c].axis('off')
 
     plt.tight_layout()
-    # Add a visual gap between sample groups
     plt.subplots_adjust(hspace=0.6)
     
     os.makedirs(save_dir, exist_ok=True)
@@ -136,7 +114,6 @@ def _plot_model_on_ax(ax, model, name, input_tensor, image_np, device, sample_id
 
 def calculateHausdorff95(folds_dict, val_loader, device, save_dir):
     results = []
-    # Initialize the metric (95th percentile is standard)
     hd95_metric = HausdorffDistanceMetric(percentile=95, reduction="mean")
 
     for exp_name, (model, base_path) in folds_dict.items():

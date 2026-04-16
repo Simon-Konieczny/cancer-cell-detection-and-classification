@@ -241,17 +241,14 @@ def sanity_check_dataloader(dataloader, num_samples=4):
     
     plt.figure(figsize=(15, 5))
     for i in range(min(num_samples, len(imgs))):
-        # 1. Denormalize Image (assuming ImageNet stats)
         img = imgs[i].permute(1, 2, 0).numpy()
         mean = np.array([0.485, 0.456, 0.406])
         std = np.array([0.229, 0.224, 0.225])
         img = std * img + mean
         img = np.clip(img, 0, 1)
         
-        # 2. Get Mask
         mask = masks[i].squeeze().numpy() # Remove channel dim
         
-        # 3. Plot
         plt.subplot(2, num_samples, i + 1)
         plt.imshow(img)
         plt.title(f"Image {i}")

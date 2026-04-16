@@ -12,10 +12,8 @@ from class_models import get_model
 from dataset import ClassificationDataset as Dataset
 
 def maxvit_reshape_transform(tensor):
-    # MaxViT blocks output (B, C, H, W) — already spatial, no reshape needed
     if len(tensor.shape) == 4:
-        return tensor  # Already (B, C, H, W)
-    # Fallback: if somehow 3D (B, L, C), reshape to spatial
+        return tensor 
     batch, L, C = tensor.shape
     height = width = int(L**0.5)
     result = tensor.reshape(batch, height, width, C)
@@ -33,9 +31,6 @@ state_dict = torch.load("./data/processed/" + folder + file_name, map_location=d
 model.load_state_dict(state_dict)
 model.to(device).eval()
 
-# --- MaxViT target layer ---
-# MaxViT in timm: model.stages[-1].blocks[-1]
-# The conv/norm after the attention+MLP in the last block is a good target
 target_layers = [model.stages[-1].blocks[-1].conv]  # type: ignore
 
 

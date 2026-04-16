@@ -1,10 +1,7 @@
 import torch
-from class_models import get_model
 from sklearn.metrics import f1_score, classification_report, roc_auc_score
-from sklearn.preprocessing import LabelBinarizer, label_binarize
+from sklearn.preprocessing import label_binarize
 from tqdm import tqdm
-from timm.data.mixup import Mixup
-import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn.functional as F
 from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
@@ -199,7 +196,6 @@ def _find_best_thresholds(all_probs, all_labels):
 
     for w_benign in search_space:
         for w_malignant in search_space:
-            # We keep Normal at 1.0 and adjust others relative to it
             current_weights = np.array([w_benign, w_malignant, 1.0])
             weighted_probs = all_probs * current_weights
             preds = np.argmax(weighted_probs, axis=1)
@@ -224,16 +220,12 @@ def _tta_validate(model, loader, device, best_biases=None):
         for imgs, labels in tqdm(loader):
             imgs = imgs.to(device)
             
-            # 1. Original Image
             logits1 = model(imgs)
             
-            # 2. Horizontal Flip
             logits2 = model(torch.flip(imgs, dims=[3]))
             
-            # 3. Vertical Flip (Optional, but good for Mammos)
             logits3 = model(torch.flip(imgs, dims=[2]))
 
-            # Average the Softmax probabilities
             probs1 = F.softmax(logits1, dim=1)
             probs2 = F.softmax(logits2, dim=1)
             probs3 = F.softmax(logits3, dim=1)
@@ -246,7 +238,6 @@ def _tta_validate(model, loader, device, best_biases=None):
     all_probs = np.concatenate(all_probs, axis=0)
     all_labels = np.array(all_labels)
 
-    # Apply Calibration Biases if provided
     if best_biases is not None:
         all_probs = all_probs * best_biases
         

@@ -40,22 +40,18 @@ p_matrix = pd.DataFrame(np.ones((n, n)), index=experiment_names, columns=experim
 g_matrix = pd.DataFrame(np.ones((n, n)), index=experiment_names, columns=experiment_names)
 
 def calculate_hedges_g(m1, sd1, m2, sd2, n=5):
-    # 1. Convert population SD (np.std) to sample SD (ddof=1)
     # Variance_sample = Variance_pop * (n / (n - 1))
     s1_sq = (sd1**2) * (n / (n - 1))
     s2_sq = (sd2**2) * (n / (n - 1))
     
-    # 2. Calculate Pooled Sample Standard Deviation
     # Since n1 = n2, this is just the square root of the average variance
     s_pooled = np.sqrt((s1_sq + s2_sq) / 2)
     
     if s_pooled == 0:
         return 0.0
     
-    # 3. Calculate Cohen's d (unbiased version)
     d = (m1 - m2) / s_pooled
     
-    # 4. Apply Hedges' g correction factor (J)
     df = (2 * n) - 2
     j = 1 - (3 / (4 * df - 1))
     
@@ -107,8 +103,6 @@ pd.DataFrame(hedges_results).to_csv(os.path.join(seg_metrics_save_dir, "hedges_g
 fig1, ax1 = plt.subplots(figsize=(16,16))
 # plt.figure(figsize=(14, 14))
 
-# We use a Log-scale-like normalization or just highlight p < 0.05
-# vmin/vmax set to 0 and 0.05 helps highlight the "significant" areas
 sns.heatmap(p_matrix, annot=True, cmap="YlGnBu_r", vmin=0, vmax=0.05, ax=ax1)
 
 ax1.set_title("P-Values Heatmap (Wilcoxon Signed-Rank Test)")
@@ -129,15 +123,15 @@ data_min = min(-1.0, np.min(g_matrix))
 data_max = max(1.0, np.max(g_matrix))
 boundaries = [data_min, -2.5, -0.8, -0.5, -0.2, 0.2, 0.5, 0.8, 2.5, data_max]
 colors = [
-    "#67001f", # Huge Neg (< -2.5) - Deep Maroon
-    "#b2182b", # Large Neg (-2.5 to -0.8)
-    "#ef8a62", # Med Neg
-    "#fddbc7", # Small Neg
-    "#f7f7f7", # Negligible (-0.2 to 0.2)
-    "#d1e5f0", # Small Pos
-    "#67a9cf", # Med Pos
-    "#2166ac", # Large Pos (0.8 to 2.5)
-    "#053061"  # Huge Pos (> 2.5) - Midnight Blue
+    "#67001f",
+    "#b2182b",
+    "#ef8a62",
+    "#fddbc7",
+    "#f7f7f7",
+    "#d1e5f0",
+    "#67a9cf",
+    "#2166ac",
+    "#053061"
 ]
 
 custom_cmap = mcolors.ListedColormap(colors)
@@ -149,7 +143,7 @@ sns.heatmap(
     cmap=custom_cmap, 
     norm=norm, 
     fmt=".2f",
-    cbar_kws={'ticks': [-2.5, -0.8, -0.5, -0.2, 0, 0.2, 0.5, 0.8, 2.5]}, # Ensure colorbar shows thresholds
+    cbar_kws={'ticks': [-2.5, -0.8, -0.5, -0.2, 0, 0.2, 0.5, 0.8, 2.5]},
     ax=ax2
 )
 
@@ -158,7 +152,6 @@ ax2.set_xlabel("Experiment (Subtrahend)")
 ax2.set_ylabel("Experiment (Minuend)")
 plt.tight_layout()
 
-# Save the plot
 plt.savefig(f"{seg_metrics_save_dir}/hedges_g_value_heatmap.png")
 plt.show()
 plt.close(fig2)

@@ -159,10 +159,10 @@ class SegmentationDataset(Dataset):
                         translate_percent={"x": (-0.15, 0.15), "y": (-0.15, 0.15)}, 
                         scale=(0.8, 1.2),
                         rotate=(-30, 30), 
-                        shear=(-10, 10), # Adds "stretching" effect
+                        shear=(-10, 10),
                         p=0.7
                     ),
-                    # Stronger Elastic Transformation (Key for Ultrasound tissue warping)
+                    # Stronger Elastic Transformation
                     A.ElasticTransform(alpha=1.5, sigma=50, p=0.4),
                     # Simulating Ultrasound Artifacts
                     A.OneOf([
@@ -173,7 +173,6 @@ class SegmentationDataset(Dataset):
                     # Simulating Gain/Lighting variations
                     A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.6),
                     A.HueSaturationValue(hue_shift_limit=0, sat_shift_limit=20, val_shift_limit=20, p=0.3),
-                    # Simulating "Shadowing" or "Blur" (Common in poor USG scans)
                     A.OneOf([
                         A.GaussianBlur(blur_limit=(3, 7), p=1.0),
                         A.CoarseDropout(max_holes=4, max_height=20, max_width=20, fill_value=0, p=1.0), # Simulated shadowing
@@ -186,9 +185,8 @@ class SegmentationDataset(Dataset):
                     A.Resize(height=target_size[0], width=target_size[1]),
                     A.HorizontalFlip(p=0.5),
                     A.Affine(
-                        # Use tuples for ranges: (min, max)
                         translate_percent={"x": (-0.05, 0.05), "y": (-0.05, 0.05)}, 
-                        scale=(0.9, 1.1),  # This means 90% to 110% of original size
+                        scale=(0.9, 1.1),
                         rotate=(-15, 15), 
                         p=0.5
                     ),

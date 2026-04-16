@@ -31,7 +31,6 @@ def plot_training_history(csv_file, out_dir):
 
         plt.tight_layout()
 
-        # Save using the stem (filename without extension)
         save_path = out_dir / f"plot_{csv_file.stem}.png"
         plt.savefig(save_path)
         plt.close()
@@ -41,14 +40,11 @@ def plot_training_history(csv_file, out_dir):
         print(f"Error processing {csv_file}: {e}")
 
 def main(input_root, output_root):
-    # Convert strings to Path objects
     src_path = Path(input_root)
     dest_path = Path(output_root)
 
-    # Create output directory if it doesn't exist
     dest_path.mkdir(parents=True, exist_ok=True)
 
-    # Use rglob for recursive search
     csv_files = list(src_path.rglob('*_history.csv'))
 
     if not csv_files:
@@ -61,7 +57,6 @@ def main(input_root, output_root):
         plot_training_history(csv_path, dest_path)
 
 if __name__ == "__main__":
-    # Set your directories here
     INPUT_DIRECTORY = './data/processed/pooled_seg_USG' 
     OUTPUT_DIRECTORY = './segmentation_visuals/plots'
     

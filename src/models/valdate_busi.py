@@ -55,14 +55,11 @@ class_loader = DataLoader(class_ds, batch_size=8, shuffle=False)
 
 avg_loss, avg_f1, avg_auc, probs, labels = _validate(model, criterion, class_loader, device)
 
-# 2. Get predictions by finding the index of the highest probability
 preds = np.argmax(probs, axis=1)
 
-# 3. Generate the Confusion Matrix
 class_names = ["Benign", "Malignant", "Normal"]
 cm = confusion_matrix(labels, preds)
 
-# 4. Plotting
 plt.figure(figsize=(8, 6))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
             xticklabels=class_names, 
@@ -73,7 +70,6 @@ plt.title('Confusion Matrix: BUSI Validation')
 plt.savefig('busi_class_validate_conf_matrix.png')
 # plt.show()
 
-# Optional: Save results to CSV (organizing the tuple into a dict first)
 results_dict = {
     "loss": [avg_loss],
     "f1_macro": [avg_f1],

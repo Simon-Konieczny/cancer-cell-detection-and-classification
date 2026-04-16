@@ -38,22 +38,19 @@ avg_loss, avg_f1, avg_auc, probs, labels = _validate(model, criterion, loader, d
 MALIGNANT_IDX = 1
 MALIGNANT_THRESHOLD = 0.25
 
-preds = []
-for prob in probs:
-    if prob[MALIGNANT_IDX] >= MALIGNANT_THRESHOLD:
-        preds.append(MALIGNANT_IDX)
-    else:
-        # among the remaining classes, pick the highest
-        preds.append(np.argmax(prob))
-preds = np.array(preds)
+# preds = []
+# for prob in probs:
+#     if prob[MALIGNANT_IDX] >= MALIGNANT_THRESHOLD:
+#         preds.append(MALIGNANT_IDX)
+#     else:
+#         preds.append(np.argmax(prob))
+# preds = np.array(preds)
 
-# preds = np.argmax(probs, axis=1)
+preds = np.argmax(probs, axis=1)
 
-# 3. Generate the Confusion Matrix
 class_names = ["Benign", "Malignant", "Normal"]
 cm = confusion_matrix(labels, preds)
 
-# 4. Plotting
 plt.figure(figsize=(8, 6))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
             xticklabels=class_names, 

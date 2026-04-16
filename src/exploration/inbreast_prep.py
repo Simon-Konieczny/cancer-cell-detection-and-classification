@@ -9,7 +9,7 @@ import cv2
 image_path = "./data/processed/INBREAST/AllDICOMs"
 save_dir = "./data/processed/INBREAST/images/"
 
-# os.makedirs(save_dir, exist_ok=True)
+os.makedirs(save_dir, exist_ok=True)
 
 df = pd.read_csv('./data/processed/INBREAST/metadata_old.csv', sep=';')
 
@@ -32,18 +32,18 @@ df['label'] = df['Bi-Rads'].apply(birads_to_label)
 df.to_csv('./data/processed/INBREAST/metadata.csv')
 
 
-# images = [f for f in listdir(image_path) if isfile(join(image_path, f))]
+images = [f for f in listdir(image_path) if isfile(join(image_path, f))]
 
-# for img in images:
-#     filename = img.split('_')[0]
+for img in images:
+    filename = img.split('_')[0]
     
-#     row = df.loc[df['File Name'] == filename]
+    row = df.loc[df['File Name'] == filename]
     
-#     ds = pydicom.dcmread(image_path + '/' + img)
-#     img_array = ds.pixel_array
+    ds = pydicom.dcmread(image_path + '/' + img)
+    img_array = ds.pixel_array
 
-#     img_normalized = cv2.normalize(img_array, img_array, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+    img_normalized = cv2.normalize(img_array, img_array, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
 
-#     img_bgr = cv2.cvtColor(img_normalized, cv2.COLOR_GRAY2BGR)
-#     cv2.imwrite(save_dir + filename + '.png', img_bgr)
+    img_bgr = cv2.cvtColor(img_normalized, cv2.COLOR_GRAY2BGR)
+    cv2.imwrite(save_dir + filename + '.png', img_bgr)
 
