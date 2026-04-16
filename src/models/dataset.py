@@ -10,6 +10,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from sklearn.utils.class_weight import compute_class_weight
 import numpy as np
+import pydicom
 
 def get_bbox(img):
     """
@@ -26,7 +27,7 @@ def get_bbox(img):
     return x, y, w, h
 
 class ClassificationDataset(Dataset):
-    def __init__(self, processed_dir, split="train", indices=None, use_roi=True, img_size=640):
+    def __init__(self, processed_dir, split="train", indices=None, use_roi=True, img_size=640, any_augmentation=True):
         self.root = Path(processed_dir)
         self.use_roi = use_roi
         df = pd.read_csv(self.root / "metadata.csv")
@@ -36,6 +37,8 @@ class ClassificationDataset(Dataset):
             self.df = df[df["split"] == split].reset_index(drop=True)
         self.images_dir = self.root / "images"
 
+        self.weights = []
+        self.weights = compute_class_weight(class_weight='balanced', classes=np.unique(self.df["label"]), y=self.df["label"])
         if len(self.df["label"].unique()) < 2:
             self.weights = compute_class_weight(class_weight='balanced', classes=np.unique(self.df["label"]), y=self.df["label"])
 
@@ -44,7 +47,9 @@ class ClassificationDataset(Dataset):
         std = (0.229, 0.224, 0.225)
 
         if split == "train":
-            self.transform = A.Compose([
+            if not any_augmentation:
+                print('here')
+                self.transform = A.Compose([
                     A.LongestMaxSize(max_size=img_size),
                     A.PadIfNeeded(
                         min_height=img_size, 
@@ -52,26 +57,38 @@ class ClassificationDataset(Dataset):
                         border_mode=cv2.BORDER_CONSTANT, 
                         value=0
                     ),
-                    A.OneOf([
-                        A.Sharpen(alpha=(0.2, 0.5), p=1.0),
-                        A.CLAHE(clip_limit=4.0, p=1.0), 
-                    ], p=0.5),
-                    A.RandomResizedCrop(height=img_size, width=img_size, scale=(0.8, 1.0), p=0.5),
-                    A.HorizontalFlip(p=0.5),
-                    A.VerticalFlip(p=0.2),
-                    A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=20, p=0.5),
-                    A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.3),
-                    A.OneOf([
-                        A.CoarseDropout(max_holes=8, max_height=32, max_width=32, min_holes=4, p=0.5),
-                        A.GridDropout(ratio=0.2, p=1.0),
-                    ], p=0.5),
-                    A.OneOf([
-                        A.GaussianBlur(blur_limit=(3, 7), p=1.0),
-                        A.ImageCompression(quality_lower=60, quality_upper=100, p=1.0),
-                    ], p=0.3),
                     A.Normalize(mean=mean, std=std),
                     ToTensorV2(),
                 ])
+            else:
+                self.transform = A.Compose([
+                        A.LongestMaxSize(max_size=img_size),
+                        A.PadIfNeeded(
+                            min_height=img_size, 
+                            min_width=img_size, 
+                            border_mode=cv2.BORDER_CONSTANT, 
+                            value=0
+                        ),
+                        A.OneOf([
+                            A.Sharpen(alpha=(0.2, 0.5), p=1.0),
+                            A.CLAHE(clip_limit=4.0, p=1.0), 
+                        ], p=0.5),
+                        A.RandomResizedCrop(height=img_size, width=img_size, scale=(0.8, 1.0), p=0.5),
+                        A.HorizontalFlip(p=0.5),
+                        A.VerticalFlip(p=0.2),
+                        A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=20, p=0.5),
+                        A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.3),
+                        A.OneOf([
+                            A.CoarseDropout(max_holes=8, max_height=32, max_width=32, min_holes=4, p=0.5),
+                            A.GridDropout(ratio=0.2, p=1.0),
+                        ], p=0.5),
+                        A.OneOf([
+                            A.GaussianBlur(blur_limit=(3, 7), p=1.0),
+                            A.ImageCompression(quality_lower=60, quality_upper=100, p=1.0),
+                        ], p=0.3),
+                        A.Normalize(mean=mean, std=std),
+                        ToTensorV2(),
+                    ])
         else:
             self.transform = A.Compose([
                     A.LongestMaxSize(max_size=img_size),
@@ -92,7 +109,7 @@ class ClassificationDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        img_path = self.images_dir / row.img_id
+        img_path = self.images_dir / str(row.img_id)
 
         img = cv2.imread(str(img_path))
         if img is None:
@@ -114,7 +131,7 @@ class ClassificationDataset(Dataset):
         return img, label
 
 class SegmentationDataset(Dataset):
-    def __init__(self, processed_dir, split="train", indices=None, target_size=(512, 512), more_augmentation=False):
+    def __init__(self, processed_dir, split="train", indices=None, target_size=(512, 512), more_augmentation=False, any_augmentation=True):
         self.root = Path(processed_dir)
         df = pd.read_csv(self.root / "metadata.csv")
         self.target_size = target_size
@@ -127,7 +144,13 @@ class SegmentationDataset(Dataset):
         self.masks_dir = self.root / "masks"
 
         if split == "train":
-            if more_augmentation:
+            if not any_augmentation:
+                self.transform = A.Compose([
+                    A.Resize(height=target_size[0], width=target_size[1]),
+                    A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                    ToTensorV2(),
+                ])
+            elif more_augmentation:
                 self.transform = A.Compose([
                     A.Resize(height=target_size[0], width=target_size[1]),
                     A.HorizontalFlip(p=0.5),

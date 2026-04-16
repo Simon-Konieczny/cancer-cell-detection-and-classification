@@ -1,4 +1,29 @@
 Exp 1,Exp 2,Hedge's g
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 Adam Simple 0.2 BCE,-0.2967
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 Adam Simple Focal,-1.0849
+MIT-B3 Adam Simple 0.3 BCE,ResNet Adam 0.3 BCE,0.8447
+MIT-B3 Adam Simple 0.3 BCE,ResNet Adam 0.2 BCE,-0.2599
+MIT-B3 Adam Simple 0.3 BCE,Resnet Tversky,0.4525
+MIT-B3 Adam Simple 0.3 BCE,ResNet Adam Focal,0.1303
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 Adam Simple Tversky,-0.6483
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 Adam,0.9493
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 Adam Tversky,0.7789
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 Adam 0.3 BCE,-0.0131
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 Adam Focal,-0.3595
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 Adam 0.2 BCE,-0.1127
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 Aggressive,1.8606
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 224,0.1807
+MIT-B3 Adam Simple 0.3 BCE,Resnet 224,1.5338
+MIT-B3 Adam Simple 0.3 BCE,Resnet 1024,0.9953
+MIT-B3 Adam Simple 0.3 BCE,Resnet Aggressive,1.2027
+MIT-B3 Adam Simple 0.3 BCE,Resnet Unet,1.0364
+MIT-B3 Adam Simple 0.3 BCE,MIT-B3 Adam Simple Baseline,-0.8544
+MIT-B3 Adam Simple 0.3 BCE,ResNet Adam Simple Baseline,0.8626
+MIT-B3 Adam Simple 0.3 BCE,ResNet Adam Simple 0.3 BCE,1.6362
+MIT-B3 Adam Simple 0.3 BCE,Resnet AdamW Simple Tversky,1.5169
+MIT-B3 Adam Simple 0.3 BCE,ResNet Adam Simple 0.2 BCE,1.8439
+MIT-B3 Adam Simple 0.3 BCE,ResNet Adam Simple Focal,0.7806
+MIT-B3 Adam Simple 0.3 BCE,Resnet Adam Baseline,0.1066
 MIT-B3 Adam Simple 0.2 BCE,MIT-B3 Adam Simple Focal,-0.7138
 MIT-B3 Adam Simple 0.2 BCE,ResNet Adam 0.3 BCE,0.9859
 MIT-B3 Adam Simple 0.2 BCE,ResNet Adam 0.2 BCE,0.0094

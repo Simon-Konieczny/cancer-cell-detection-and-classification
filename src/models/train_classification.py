@@ -7,7 +7,6 @@ from timm.data.mixup import Mixup
 import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn.functional as F
-from torch.cuda.amp import autocast, GradScaler
 from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
 import pandas as pd
 
@@ -136,7 +135,7 @@ def _validate(model, criterion, loader, device, best_f1=None):
 
     with torch.no_grad():
         if device.type == 'cuda':
-            with autocast():
+            with torch.autocast('cuda'):
                 for imgs, labels in loader:
                     imgs, labels = imgs.to(device), labels.to(device)
                     outputs = model(imgs)

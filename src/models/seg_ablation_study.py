@@ -47,8 +47,10 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
     print(f"Calculated Ratio Weight: {auto_weight:.2f}")
 
     experiments = [
+        # NO AUG BASELINE
+        {"name": "No Augmentation Baseline", "encoder": "resnet34", "optimizer": "adamw_simple", "criterion": "bce_with_logits", "any_augmentation": False},
+        
         #ResNet34
-        # start 1
         # {"name": "ResNet Adam Simple Baseline", "encoder": "resnet34", "optimizer": "adamw_simple", "criterion": "bce_with_logits"},
         # {"name": "ResNet Adam Simple 0.3 BCE", "encoder": "resnet34", "optimizer": "adamw_simple", "criterion": "hybrid_loss_0.3"},
         # {"name": "Resnet AdamW Simple Tversky", "encoder": "resnet34", "optimizer": "adamw_simple", "criterion": "tversky"},
@@ -56,14 +58,11 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
         # {"name": "ResNet Adam Simple Focal", "encoder": "resnet34", "optimizer": "adamw_simple", "criterion": "focal_dice"},
 
         # {"name": "Resnet Adam Baseline", "encoder": "resnet34", "optimizer": "adamw", "criterion": "bce_with_logits"},
-        # done
-        # start 6
         # {"name": "ResNet Adam 0.3 BCE", "encoder": "resnet34", "optimizer": "adamw", "criterion": "hybrid_loss_0.3"},
         # {"name": "ResNet Adam 0.2 BCE", "encoder": "resnet34", "optimizer": "adamw", "criterion": "hybrid_loss_0.2"},
         # {"name": "Resnet Tversky", "encoder": "resnet34", "optimizer": "adamw", "criterion": "tversky"},
         # {"name": "ResNet Adam Focal", "encoder": "resnet34", "optimizer": "adamw", "criterion": "focal_dice"},
 
-        # start 2
         # {"name": "Resnet 224", "encoder": "resnet34", "optimizer": "adamw", "criterion": "tversky", "size": 224},
         # {"name": "Resnet 1024", "encoder": "resnet34", "optimizer": "adamw", "criterion": "tversky", "size": 1024},
 
@@ -75,15 +74,11 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
 
         # MiT
         # {"name": "MIT-B3 Adam Simple Baseline", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "bce_with_logits"},
-        # done
         # {"name": "MIT-B3 Adam Simple Tversky", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "tversky"},
-        # start 7
         # {"name": "MIT-B3 Adam Simple 0.2 BCE", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "hybrid_loss_0.2"},
         # {"name": "MIT-B3 Adam Simple Focal", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "focal_dice"},
-        # start 2
         # {"name": "MIT-B3 Adam Simple 0.3 BCE", "encoder": "mit_b3", "optimizer": "adamw_simple", "criterion": "hybrid_loss_0.3"},
         
-        #start 3
         # {"name": "MIT-B3 Adam", "encoder": "mit_b3", "optimizer": "adamw", "criterion": "bce_with_logits"},
         # {"name": "MIT-B3 Adam Tversky", "encoder": "mit_b3", "optimizer": "adamw", "criterion": "tversky"},
         # {"name": "MIT-B3 Adam 0.3 BCE", "encoder": "mit_b3", "optimizer": "adamw", "criterion": "hybrid_loss_0.3"},
@@ -117,6 +112,7 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
             criterion_name = exp.get("criterion", "bce_with_logits")
             size = int(exp.get("size", 512))
             is_aggressive = bool(exp.get("aggressive", False))
+            any_augmentation = bool(exp.get("any_augmentation", True))
             
             if size > 512:
                 batch_size = max(1, batch_size // 2)
@@ -125,13 +121,13 @@ def run_ablation_study(processed_dir, logger, batch_size, k_folds, epochs):
 
             for fold, (train_idx, val_idx) in enumerate(kf.split(full_df, full_df["stratify_label"])):
                 print(f"\n--- Fold {fold+1}/{k_folds} ---")
-                train_ds = Dataset(processed_dir, split="train", indices=train_idx, target_size=(size, size), more_augmentation=is_aggressive)
+                train_ds = Dataset(processed_dir, split="train", indices=train_idx, target_size=(size, size), more_augmentation=is_aggressive, any_augmentation=any_augmentation)
                 val_ds = Dataset(processed_dir, split="val", indices=val_idx, target_size=(size, size))
 
                 train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, prefetch_factor=2)
                 val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
 
-                sanity_check_dataloader(train_loader)
+                # sanity_check_dataloader(train_loader)
 
                 # create model and move to device
                 if encoder_name == "resnet34":

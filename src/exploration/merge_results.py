@@ -1,6 +1,6 @@
 import pandas as pd
 
-results = ["./mit-b3_adam_simple_0.3_bce_mit-b3_adam_simple_0.3_bce_segmentation_ablation_study_results.csv", "./seg_results_old.csv"]
+results = ["./no_aug_res.csv", "./seg_results_old.csv"]
 
 df = pd.DataFrame()
 for r in results:
