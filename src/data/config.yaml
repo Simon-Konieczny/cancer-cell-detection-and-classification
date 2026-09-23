@@ -1,0 +1,17 @@
+ pipeline_data:
+  classification:
+    LocalDataSet:
+      - raw: ./data/raw/LocalDataSet/DCL_Mammos
+        processed: ./data/processed/LocalDataSet/DCL_Mammos
+      - raw: ./data/raw/LocalDataSet/DCL_USG
+        processed: ./data/processed/LocalDataSet/DCL_USG
+      - raw: ./data/raw/LocalDataSet/Spectra_Mammos
+        processed: ./data/processed/LocalDataSet/Spectra_Mammos
+  
+  segmentation:
+    BrCaWisconsin:
+      - raw: ./data/raw/BrCaWisconsin
+        processed: ./data/processed/BrCaWisconsin
+    BrEaST-Lesions_USG-images_and_masks:
+      - raw: ./data/raw/BrEaST-Lesions_USG-images_and_masks
+        processed: ./data/processed/BrEaST-Lesions_USG-images_and_masks

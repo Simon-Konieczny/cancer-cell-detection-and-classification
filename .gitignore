@@ -210,9 +210,6 @@ __marimo__/
 
 # Data
 /data/raw/
-/data/processed/
-/src/data/config.yaml
 *.png
+*.pth
 /runs
-/gradcam_outputs
-/loss_curves
